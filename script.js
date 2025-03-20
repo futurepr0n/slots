@@ -76,8 +76,24 @@ const userAPI = {
     uniqueIdentifier: null,
     
     saveUserData: function(userData) {
+        // Clone userData to avoid modifying the original object
+        const userDataToSave = JSON.parse(JSON.stringify(userData));
+        
+        // Round monetary values to 2 decimal places
+        if (typeof userDataToSave.totalWon === 'number') {
+            userDataToSave.totalWon = Math.round(userDataToSave.totalWon * 100) / 100;
+        }
+        
+        if (typeof userDataToSave.totalWagered === 'number') {
+            userDataToSave.totalWagered = Math.round(userDataToSave.totalWagered * 100) / 100;
+        }
+        
+        if (typeof userDataToSave.bankroll === 'number') {
+            userDataToSave.bankroll = Math.round(userDataToSave.bankroll * 100) / 100;
+        }
+        
         // Create a server endpoint URL for saving user data
-        const saveUrl = `/save-user?data=${encodeURIComponent(JSON.stringify(userData))}`;
+        const saveUrl = `/save-user?data=${encodeURIComponent(JSON.stringify(userDataToSave))}`;
         
         // Make actual server request to save data
         return fetch(saveUrl)
@@ -107,7 +123,7 @@ const userAPI = {
             .catch(error => {
                 console.error('Error saving user data to server:', error);
                 // Fallback to localStorage if server saving fails
-                localStorage.setItem('slotMachineUser', JSON.stringify(userData));
+                localStorage.setItem('slotMachineUser', JSON.stringify(userDataToSave));
                 return { success: false, error: error.message };
             });
     },
@@ -440,20 +456,24 @@ function handleLogin() {
 
 // Update user display
 function updateUserDisplay() {
+    // Round values before displaying (in case they come from the server with precision issues)
+    const totalWon = Math.round(currentUser.totalWon * 100) / 100;
+    const totalWagered = Math.round(currentUser.totalWagered * 100) / 100;
+    
     // Update current player
     document.getElementById('current-player').textContent = currentUser.username;
     
-    // Update player stats
+    // Update player stats with fixed precision
     document.getElementById('player-total-won').textContent = 
-        `$${currentUser.totalWon.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        `$${totalWon.toFixed(2)}`;
     document.getElementById('player-total-wagered').textContent = 
-        `$${currentUser.totalWagered.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        `$${totalWagered.toFixed(2)}`;
     
     // Update leaderboard
     if (leaderboard.topWinner) {
+        const mostWon = Math.round(leaderboard.mostWon * 100) / 100;
         document.getElementById('top-winner').textContent = leaderboard.topWinner;
-        document.getElementById('most-won').textContent = 
-            `$${leaderboard.mostWon.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('most-won').textContent = `$${mostWon.toFixed(2)}`;
     }
 }
 
@@ -813,7 +833,12 @@ function spin() {
     
     // Track wagered amount for current user
     currentUser.totalWagered += stake;
+    // Add this line to ensure proper rounding to 2 decimal places
+    currentUser.totalWagered = Math.round(currentUser.totalWagered * 100) / 100;
     currentUser.bankroll -= stake; // Deduct from bankroll
+    // Also round the bankroll
+    currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
+
     userAPI.saveUserData(currentUser);
     updateUserDisplay();
     

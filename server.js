@@ -335,9 +335,9 @@ if (pathname === '/load-jackpot') {
                              bankroll = ?
                          WHERE id = ?`,
                         [
-                            userData.totalWon || existingUsers[0].total_won,
-                            userData.totalWagered || existingUsers[0].total_wagered,
-                            userData.bankroll || existingUsers[0].bankroll,
+                            roundMoney(userData.totalWon || existingUsers[0].total_won),
+                            roundMoney(userData.totalWagered || existingUsers[0].total_wagered),
+                            roundMoney(userData.bankroll || existingUsers[0].bankroll),
                             userId
                         ]
                     );
@@ -350,9 +350,9 @@ if (pathname === '/load-jackpot') {
                         [
                             username,
                             uniqueIdentifier,
-                            userData.totalWon || 0,
-                            userData.totalWagered || 0,
-                            userData.bankroll || 0
+                            roundMoney(userData.totalWon || 0),
+                            roundMoney(userData.totalWagered || 0),
+                            roundMoney(userData.bankroll || 0)
                         ]
                     );
                     userId = result.insertId;
@@ -679,6 +679,13 @@ if (pathname === '/load-jackpot') {
         }
     });
 });
+
+function roundMoney(value) {
+    if (typeof value === 'number' && !isNaN(value)) {
+        return Math.round(value * 100) / 100;
+    }
+    return value;
+}
 
 // Function to initialize the database if needed
 async function initializeDatabase() {
