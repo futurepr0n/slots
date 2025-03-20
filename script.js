@@ -71,25 +71,45 @@ const symbols = [
 
 // User API for user data - uses fetch to communicate with server
 const userAPI = {
+    // Store user ID once logged in
+    userId: null,
+    uniqueIdentifier: null,
+    
     saveUserData: function(userData) {
         // Create a server endpoint URL for saving user data
         const saveUrl = `/save-user?data=${encodeURIComponent(JSON.stringify(userData))}`;
         
         // Make actual server request to save data
-        fetch(saveUrl)
+        return fetch(saveUrl)
             .then(response => response.json())
             .then(result => {
                 console.log('User data saved to server:', result);
+                
+                if (result.success) {
+                    // Update stored user ID
+                    this.userId = result.data.id;
+                    this.uniqueIdentifier = result.data.uniqueIdentifier;
+                    
+                    // Update leaderboard if provided
+                    if (result.leaderboard) {
+                        leaderboard = result.leaderboard;
+                    }
+                    
+                    // Update custom symbols if provided
+                    if (result.data.customSymbols) {
+                        customSymbols = result.data.customSymbols;
+                        applyCustomSymbols();
+                    }
+                }
+                
+                return result;
             })
             .catch(error => {
                 console.error('Error saving user data to server:', error);
                 // Fallback to localStorage if server saving fails
                 localStorage.setItem('slotMachineUser', JSON.stringify(userData));
+                return { success: false, error: error.message };
             });
-            
-        // Also save to localStorage as a backup
-        localStorage.setItem('slotMachineUser', JSON.stringify(userData));
-        console.log('User data saved:', userData);
     },
     
     loadUsersData: function() {
@@ -102,6 +122,10 @@ const userAPI = {
                 .then(response => response.json())
                 .then(data => {
                     console.log('Users data loaded from server:', data);
+                    
+                    // Store the unique identifier
+                    this.uniqueIdentifier = data.uniqueIdentifier;
+                    
                     resolve(data);
                 })
                 .catch(error => {
@@ -140,6 +164,11 @@ const userAPI = {
                     totalWagered: data.users[username].totalWagered || 0,
                     bankroll: data.users[username].bankroll || 0 // Load bankroll
                 };
+                
+                // Set user ID if available
+                if (data.users[username].id) {
+                    this.userId = data.users[username].id;
+                }
             } else {
                 // Create new user
                 currentUser = {
@@ -153,18 +182,106 @@ const userAPI = {
             // Update leaderboard
             leaderboard = data.leaderboard;
             
-            // Save user login
-            this.saveUserData(currentUser);
-            
-            // ALWAYS reset credits to $100 for a new session
-            credits = 100;
-            
-            // Update display
-            updateUserDisplay();
-            updateCredits();
-            
-            return currentUser;
+            // Save user login and get updated data
+            return this.saveUserData(currentUser).then(result => {
+                if (result.success) {
+                    // ALWAYS reset credits to $100 for a new session
+                    credits = 100;
+                    
+                    // Update display
+                    updateUserDisplay();
+                    updateCredits();
+                }
+                
+                return currentUser;
+            });
         });
+    },
+    
+    // Load custom symbols for current user
+    loadCustomSymbols: function() {
+        // Only load if we have a user ID
+        if (!this.userId) {
+            return Promise.resolve({});
+        }
+        
+        return fetch(`/load-custom-symbols?userId=${this.userId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    customSymbols = data.customSymbols || {};
+                    applyCustomSymbols();
+                    return customSymbols;
+                }
+                return {};
+            })
+            .catch(error => {
+                console.error('Error loading custom symbols:', error);
+                return {};
+            });
+    },
+    
+    // Save a custom symbol
+    saveCustomSymbol: function(symbolName, imageData) {
+        // Only save if we have a user ID
+        if (!this.userId) {
+            return Promise.resolve(false);
+        }
+        
+        const symbolData = {
+            userId: this.userId,
+            symbolName: symbolName,
+            imageData: imageData
+        };
+        
+        return fetch(`/save-custom-symbol?data=${encodeURIComponent(JSON.stringify(symbolData))}`)
+            .then(response => response.json())
+            .then(data => {
+                return data.success || false;
+            })
+            .catch(error => {
+                console.error('Error saving custom symbol:', error);
+                return false;
+            });
+    },
+    
+    // Delete a custom symbol
+    deleteCustomSymbol: function(symbolName) {
+        // Only delete if we have a user ID
+        if (!this.userId) {
+            return Promise.resolve(false);
+        }
+        
+        return fetch(`/delete-custom-symbol?userId=${this.userId}&symbolName=${symbolName}`)
+            .then(response => response.json())
+            .then(data => {
+                return data.success || false;
+            })
+            .catch(error => {
+                console.error('Error deleting custom symbol:', error);
+                return false;
+            });
+    },
+    
+    // Record a spin
+    recordSpin: function(spinData) {
+        // Only record if we have a user ID
+        if (!this.userId) {
+            return Promise.resolve(false);
+        }
+        
+        // Add user ID to spin data
+        spinData.userId = this.userId;
+        
+        return fetch(`/record-spin?data=${encodeURIComponent(JSON.stringify(spinData))}`)
+            .then(response => response.json())
+            .then(data => {
+                return data.success || false;
+            })
+            .catch(error => {
+                console.error('Error recording spin:', error);
+                return false;
+            });
     }
 };
 
@@ -178,7 +295,7 @@ const jackpotAPI = {
         if (this.lockPending) {
             console.log('Update already in progress, will retry');
             setTimeout(() => this.saveJackpotData(data), 500);
-            return;
+            return Promise.resolve(false);
         }
         
         this.lockPending = true;
@@ -187,52 +304,47 @@ const jackpotAPI = {
         const saveUrl = `/save-jackpot?data=${encodeURIComponent(JSON.stringify(data))}`;
         
         // Make actual server request to save data
-        fetch(saveUrl)
+        return fetch(saveUrl)
             .then(response => response.json())
             .then(result => {
                 console.log('Jackpot data saved to server:', result);
                 this.lockPending = false;
+                
+                if (result.success && result.data) {
+                    // Update local variables with server data
+                    jackpotRoyale = result.data.jackpotRoyale;
+                    lastJackpotWon = result.data.lastJackpotWon;
+                    lastJackpotDate = result.data.lastJackpotDate;
+                    
+                    // Update displays
+                    updateJackpotDisplays();
+                }
+                
+                return result.success || false;
             })
             .catch(error => {
                 console.error('Error saving jackpot data to server:', error);
                 this.lockPending = false;
-                // Fallback to localStorage if server saving fails
-                localStorage.setItem('slotMachineJackpot', JSON.stringify(data));
+                return false;
             });
-            
-        // Also save to localStorage as a backup
-        localStorage.setItem('slotMachineJackpot', JSON.stringify(data));
     },
     
     loadJackpotData: function() {
-        return new Promise((resolve, reject) => {
-            // Create a server endpoint URL for loading jackpot data
-            const loadUrl = `/load-jackpot`;
-            
-            // Try to load from server first
-            fetch(loadUrl)
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Jackpot data loaded from server:', data);
-                    resolve(data);
-                })
-                .catch(error => {
-                    console.warn('Could not load from server, using localStorage fallback', error);
-                    // Fallback to localStorage if server loading fails
-                    const localData = localStorage.getItem('slotMachineJackpot');
-                    if (localData) {
-                        resolve(JSON.parse(localData));
-                    } else {
-                        // No data found, return default values
-                        resolve({
-                            jackpotRoyale: 10000.00,
-                            lastJackpotWon: 0.00,
-                            lastJackpotDate: "",
-                            lastUpdated: new Date().toISOString()
-                        });
-                    }
-                });
-        });
+        return fetch('/load-jackpot')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Jackpot data loaded from server:', data);
+                return data;
+            })
+            .catch(error => {
+                console.warn('Could not load from server:', error);
+                return {
+                    jackpotRoyale: 10000.00,
+                    lastJackpotWon: 0.00,
+                    lastJackpotDate: "",
+                    lastUpdated: new Date().toISOString()
+                };
+            });
     }
 };
 
@@ -259,22 +371,24 @@ function initGame() {
     // Update displays
     updateCredits();
     updateStakeDisplay();
-
-    initSymbolCustomizer();
     
+    // Initialize symbol customizer
+    initSymbolCustomizer();
+
     // Update clock
     updateClock();
     setInterval(updateClock, 60000);
     
-    // Load jackpot data
+    // Load jackpot data from database
     loadJackpotFromStorage();
     
     // Show login modal immediately
     document.getElementById('login-modal').style.display = 'flex';
-
+    
+    // Start jackpot refresh timer
     setInterval(refreshJackpotFromServer, 5000);
     
-    
+    console.log('Game initialized successfully');
 }
 
 // Function to handle user login
@@ -332,7 +446,7 @@ function updateClock() {
 // Load jackpot from storage
 async function loadJackpotFromStorage() {
     try {
-        console.log('Loading jackpot data from storage...');
+        console.log('Loading jackpot data from database...');
         // Try to load from jackpot API
         const jackpotData = await jackpotAPI.loadJackpotData();
         
@@ -379,12 +493,11 @@ function saveJackpotToStorage() {
     const jackpotData = {
         jackpotRoyale: jackpotRoyale,
         lastJackpotWon: lastJackpotWon,
-        lastJackpotDate: lastJackpotDate,
-        lastUpdated: new Date().toISOString()
+        lastJackpotDate: lastJackpotDate
     };
     
     // Save to jackpot API
-    jackpotAPI.saveJackpotData(jackpotData);
+    return jackpotAPI.saveJackpotData(jackpotData);
 }
 
 function refreshJackpotFromServer() {
@@ -392,10 +505,12 @@ function refreshJackpotFromServer() {
     if (!isSpinning) {
         jackpotAPI.loadJackpotData()
             .then(data => {
-                if (data && typeof data.jackpotRoyale === 'number') {
+                if (data && typeof data.jackpotRoyale === 'number' && !isNaN(data.jackpotRoyale)) {
                     // Only update if the value is different
                     if (Math.abs(jackpotRoyale - data.jackpotRoyale) > 0.01) {
                         jackpotRoyale = data.jackpotRoyale;
+                        lastJackpotWon = data.lastJackpotWon || 0;
+                        lastJackpotDate = data.lastJackpotDate || "";
                         updateJackpotDisplays();
                     }
                 }
@@ -863,6 +978,16 @@ function checkWins() {
     // Check for jackpot
     const jackpotWin = checkForJackpot(visibleSymbols);
     
+    // Prepare spin data for recording
+    const spinData = {
+        stake: stake,
+        winAmount: winAmount,
+        isJackpot: jackpotWin,
+        reel1Symbols: visibleSymbols[0].map(s => s.type),
+        reel2Symbols: visibleSymbols[1].map(s => s.type),
+        reel3Symbols: visibleSymbols[2].map(s => s.type)
+    };
+    
     // Show win animation if won
     if (winAmount > 0 || jackpotWin) {
         document.querySelector('.win-animation').classList.add('active');
@@ -880,6 +1005,9 @@ function checkWins() {
             
             // Handle jackpot win (will add to credits)
             handleJackpotWin();
+            
+            // Record the jackpot spin
+            spinData.winAmount = jackpotAmount;
         } else {
             // For regular wins, take money from the jackpot
             // Cap the win amount to not exceed the jackpot
@@ -909,17 +1037,30 @@ function checkWins() {
             saveJackpotToStorage();
             
             showMessage(`WIN $${actualWinAmount.toFixed(2)}!`);
+            
+            // Update the actual win amount in spin data
+            spinData.winAmount = actualWinAmount;
         }
+        
+        // Create particles for significant wins
         if (winAmount >= 10 || jackpotWin) {
             createWinParticles();
         }
     } else {
+        // No win - add stake to jackpot
         jackpotRoyale += stake;
-        jackpotRoyale = parseFloat(jackpotRoyale.toFixed(2));
+        jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
         updateJackpotDisplays();
         saveJackpotToStorage();
         showMessage("Try again!");
     }
+    
+    // Record the spin in database
+    userAPI.recordSpin(spinData).then(success => {
+        if (success) {
+            console.log('Spin recorded successfully');
+        }
+    });
     
     // Reset spinning flag
     isSpinning = false;
@@ -927,11 +1068,13 @@ function checkWins() {
 
 // Handle jackpot win
 function handleJackpotWin() {
+    const jackpotAmount = jackpotRoyale;
+    
     // Add jackpot to credits
-    credits += jackpotRoyale;
+    credits += jackpotAmount;
     
     // Show message
-    showMessage(`JACKPOT WIN ${jackpotRoyale.toFixed(2)}!`);
+    showMessage(`JACKPOT WIN $${jackpotAmount.toFixed(2)}!`);
     
     // Create particles for jackpot win
     createWinParticles();
@@ -940,7 +1083,7 @@ function handleJackpotWin() {
     document.querySelector('.win-animation').classList.add('active');
     
     // Update jackpot history data
-    lastJackpotWon = jackpotRoyale;
+    lastJackpotWon = jackpotAmount;
     
     // Format the current date (MM/DD/YYYY)
     const now = new Date();
@@ -956,8 +1099,17 @@ function handleJackpotWin() {
     updateCredits();
     updateJackpotDisplays();
     
-    // Save to storage
+    // Save to database
     saveJackpotToStorage();
+    
+    // Check if this player should be the new leaderboard champion
+    if (jackpotAmount > leaderboard.mostWon) {
+        leaderboard.topWinner = currentUser.username;
+        leaderboard.mostWon = jackpotAmount;
+        
+        // This will be saved when user data is saved
+        userAPI.saveUserData(currentUser);
+    }
 }
 
 // Check for special prize combinations
@@ -1062,13 +1214,42 @@ function initSymbolCustomizer() {
 function showSymbolCustomizer() {
     if (isSpinning) return; // Don't show if reels are spinning
     
-    document.getElementById('symbol-customizer-modal').style.display = 'flex';
+    // Make sure to load the latest custom symbols first
+    userAPI.loadCustomSymbols().then(() => {
+        // Update the previews in the customizer
+        updateSymbolPreviews();
+        
+        // Show the modal
+        document.getElementById('symbol-customizer-modal').style.display = 'flex';
+    });
+}
+
+function updateSymbolPreviews() {
+    // Clear all previews first
+    document.querySelectorAll('.symbol-preview .symbol-content').forEach(preview => {
+        preview.style.backgroundImage = '';
+        preview.classList.remove('custom');
+    });
+    
+    // Apply custom symbol previews
+    for (const symbolType in customSymbols) {
+        const dataURL = customSymbols[symbolType];
+        const previewElement = document.querySelector(`.symbol-file[data-symbol="${symbolType}"]`)
+                                    ?.closest('.symbol-row')
+                                    ?.querySelector('.symbol-content');
+        
+        if (previewElement) {
+            previewElement.style.backgroundImage = `url('${dataURL}')`;
+            previewElement.classList.add('custom');
+        }
+    }
 }
 
 // Hide symbol customizer modal
 function hideSymbolCustomizer() {
     document.getElementById('symbol-customizer-modal').style.display = 'none';
 }
+
 
 // Handle symbol image upload
 function handleSymbolUpload(event) {
@@ -1083,26 +1264,30 @@ function handleSymbolUpload(event) {
         return;
     }
     
+    // Check file size (limit to 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        alert('Image file size must be less than 2MB');
+        return;
+    }
+    
     // Create a FileReader to read the image
     const reader = new FileReader();
     
     reader.onload = function(e) {
         const dataURL = e.target.result;
         
-        // Store the custom symbol
+        // Store the custom symbol locally
         customSymbols[symbolType] = dataURL;
         
         // Update the preview
         const previewElement = event.target.closest('.symbol-row').querySelector('.symbol-content');
         previewElement.style.backgroundImage = `url('${dataURL}')`;
         previewElement.classList.add('custom');
-        
-        // Save to localStorage
-        localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
     };
     
     reader.readAsDataURL(file);
 }
+
 
 // Reset a symbol to default
 function resetSymbol(event) {
@@ -1116,7 +1301,20 @@ function resetSymbol(event) {
     previewElement.style.backgroundImage = '';
     previewElement.classList.remove('custom');
     
-    // Important: Also need to reset all current instances of this symbol on the reels
+    // Delete from database if user is logged in
+    if (userAPI.userId) {
+        userAPI.deleteCustomSymbol(symbolType).then(success => {
+            if (success) {
+                console.log(`Symbol ${symbolType} reset successfully in database`);
+            }
+        });
+    }
+    
+    // Reset all current instances of this symbol on the reels
+    applySymbolReset(symbolType);
+}
+
+function applySymbolReset(symbolType) {
     reels.forEach(reel => {
         reel.symbols.forEach(symbolData => {
             if (symbolData.type === symbolType) {
@@ -1147,21 +1345,35 @@ function resetSymbol(event) {
             }
         });
     });
-    
-    // Save the updated customSymbols to localStorage
-    localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
 }
-
 // Save custom symbols and close the modal
 function saveCustomSymbols() {
-    // Save to localStorage
-    localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
-    
-    // Apply custom symbols to the game
-    applyCustomSymbols();
-    
-    // Hide the modal
-    hideSymbolCustomizer();
+    // If user is logged in, save to database
+    if (userAPI.userId) {
+        const savePromises = [];
+        
+        // Save each custom symbol to the database
+        for (const symbolType in customSymbols) {
+            savePromises.push(
+                userAPI.saveCustomSymbol(symbolType, customSymbols[symbolType])
+            );
+        }
+        
+        // Wait for all saves to complete
+        Promise.all(savePromises).then(() => {
+            console.log('All custom symbols saved to database');
+            
+            // Apply custom symbols to the game
+            applyCustomSymbols();
+            
+            // Hide the modal
+            hideSymbolCustomizer();
+        });
+    } else {
+        // If not logged in, just apply locally
+        applyCustomSymbols();
+        hideSymbolCustomizer();
+    }
 }
 
 // Load custom symbols from localStorage
