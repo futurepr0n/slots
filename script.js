@@ -263,9 +263,10 @@ function initGame() {
     
     // Show login modal immediately
     document.getElementById('login-modal').style.display = 'flex';
+
+    setInterval(refreshJackpotFromServer, 5000);
     
-    // Start jackpot growth timer (small automatic growth over time)
-    setInterval(growJackpot, 5000);
+    
 }
 
 // Function to handle user login
@@ -378,20 +379,25 @@ function saveJackpotToStorage() {
     jackpotAPI.saveJackpotData(jackpotData);
 }
 
-// Increase jackpot over time (small automatic growth)
-function growJackpot() {
-    // Only apply tiny automatic growth, main growth comes from spins
-    jackpotRoyale += 0.01; // Just 1 cent per increment
-    
-    // Round to 2 decimal places
-    jackpotRoyale = Math.round(jackpotRoyale * 100) / 100;
-    
-    // Update displays
-    updateJackpotDisplays();
-    
-    // Save to storage
-    saveJackpotToStorage();
+function refreshJackpotFromServer() {
+    // Only refresh if not currently spinning
+    if (!isSpinning) {
+        jackpotAPI.loadJackpotData()
+            .then(data => {
+                if (data && typeof data.jackpotRoyale === 'number') {
+                    // Only update if the value is different
+                    if (Math.abs(jackpotRoyale - data.jackpotRoyale) > 0.01) {
+                        jackpotRoyale = data.jackpotRoyale;
+                        updateJackpotDisplays();
+                    }
+                }
+            })
+            .catch(error => {
+                console.warn('Error refreshing jackpot data:', error);
+            });
+    }
 }
+
 
 // Update jackpot displays
 function updateJackpotDisplays() {

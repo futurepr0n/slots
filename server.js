@@ -107,37 +107,49 @@ const server = http.createServer((req, res) => {
             // Round to 2 decimal places for consistency
             jackpotData.jackpotRoyale = Math.round(jackpotData.jackpotRoyale * 100) / 100;
             
-            // Load existing data first to avoid complete overwrites
-            let existingData = {};
             try {
+                // Check if the file exists
+                let existingData;
                 if (fs.existsSync(jackpotDataPath)) {
-                    existingData = JSON.parse(fs.readFileSync(jackpotDataPath, 'utf8'));
+                    // Read the existing file
+                    const fileContent = fs.readFileSync(jackpotDataPath, 'utf8');
+                    existingData = JSON.parse(fileContent);
                     
-                    // Only update the fields that are provided
-                    if (jackpotData.jackpotRoyale !== undefined) existingData.jackpotRoyale = jackpotData.jackpotRoyale;
-                    if (jackpotData.lastJackpotWon !== undefined) existingData.lastJackpotWon = jackpotData.lastJackpotWon;
-                    if (jackpotData.lastJackpotDate !== undefined) existingData.lastJackpotDate = jackpotData.lastJackpotDate;
+                    // Add source info for debugging
+                    jackpotData.source = req.headers['user-agent'] || 'unknown';
+                    
+                    // Update only specific fields
+                    existingData.jackpotRoyale = jackpotData.jackpotRoyale;
+                    if (jackpotData.lastJackpotWon !== undefined) {
+                        existingData.lastJackpotWon = jackpotData.lastJackpotWon;
+                    }
+                    if (jackpotData.lastJackpotDate !== undefined) {
+                        existingData.lastJackpotDate = jackpotData.lastJackpotDate;
+                    }
                 } else {
-                    // Use provided data as is if file doesn't exist
+                    // File doesn't exist, use the provided data
                     existingData = jackpotData;
                 }
-            } catch (err) {
-                console.error('Error reading existing jackpot data:', err);
-                existingData = jackpotData;
+                
+                // Add timestamp
+                existingData.lastUpdated = new Date().toISOString();
+                
+                // Write to file
+                fs.writeFileSync(jackpotDataPath, JSON.stringify(existingData, null, 2));
+                
+                jackpotFileLock = false;
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    success: true,
+                    data: existingData
+                }));
+            } catch (fileError) {
+                jackpotFileLock = false;
+                console.error('Error with jackpot file:', fileError);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'File operation failed' }));
             }
-            
-            // Update timestamp
-            existingData.lastUpdated = new Date().toISOString();
-            
-            // Save to file
-            fs.writeFileSync(jackpotDataPath, JSON.stringify(existingData, null, 2));
-            jackpotFileLock = false;
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                success: true,
-                data: existingData
-            }));
         } catch (error) {
             jackpotFileLock = false;
             console.error('Error saving jackpot data:', error);
@@ -149,8 +161,11 @@ const server = http.createServer((req, res) => {
     
     if (pathname === '/load-jackpot') {
         try {
-            // Check if the file exists, if not create with default values
+            console.log('Loading jackpot data requested by:', req.headers['user-agent'] || 'unknown');
+            
+            // Check if the file exists
             if (!fs.existsSync(jackpotDataPath)) {
+                console.log('Jackpot file not found, creating default');
                 const initialData = {
                     jackpotRoyale: 10000.00,
                     lastJackpotWon: 0.00,
@@ -164,28 +179,21 @@ const server = http.createServer((req, res) => {
                 return;
             }
             
-            // Read existing file
+            // Read the file
             const fileContent = fs.readFileSync(jackpotDataPath, 'utf8');
             let jackpotData;
             
             try {
-                // Try to parse JSON
                 jackpotData = JSON.parse(fileContent);
+                console.log('Returning jackpot data:', jackpotData);
                 
-                // Validate data - if invalid fields, provide defaults
+                // Validate data
                 if (typeof jackpotData.jackpotRoyale !== 'number' || isNaN(jackpotData.jackpotRoyale)) {
                     console.warn('Invalid jackpot value in file, using default');
                     jackpotData.jackpotRoyale = 10000.00;
                 }
-                
-                // Ensure other fields exist
-                jackpotData.lastJackpotWon = jackpotData.lastJackpotWon || 0.00;
-                jackpotData.lastJackpotDate = jackpotData.lastJackpotDate || "";
-                jackpotData.lastUpdated = jackpotData.lastUpdated || new Date().toISOString();
-                
             } catch (jsonError) {
-                // If parsing fails, use default values
-                console.error('Error parsing jackpot JSON file:', jsonError);
+                console.error('Error parsing jackpot data JSON:', jsonError);
                 jackpotData = {
                     jackpotRoyale: 10000.00,
                     lastJackpotWon: 0.00,
@@ -193,7 +201,7 @@ const server = http.createServer((req, res) => {
                     lastUpdated: new Date().toISOString()
                 };
                 
-                // Overwrite corrupted file with valid data
+                // Repair the file
                 fs.writeFileSync(jackpotDataPath, JSON.stringify(jackpotData, null, 2));
             }
             
@@ -201,8 +209,6 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify(jackpotData));
         } catch (error) {
             console.error('Error loading jackpot data:', error);
-            
-            // Return default data in case of error
             const defaultData = {
                 jackpotRoyale: 10000.00,
                 lastJackpotWon: 0.00,
