@@ -327,7 +327,7 @@ const jackpotAPI = {
                 this.lockPending = false;
                 return false;
             });
-    },
+    }/* ,
     
     loadJackpotData: function() {
         return fetch('/load-jackpot')
@@ -345,7 +345,7 @@ const jackpotAPI = {
                     lastUpdated: new Date().toISOString()
                 };
             });
-    }
+    } */
 };
 
 // Initialize the game
@@ -493,10 +493,13 @@ function saveJackpotToStorage() {
     const jackpotData = {
         jackpotRoyale: jackpotRoyale,
         lastJackpotWon: lastJackpotWon,
-        lastJackpotDate: lastJackpotDate
+        lastJackpotDate: lastJackpotDate,
+        lastUpdated: new Date().toISOString() // Add timestamp for better tracking
     };
     
-    // Save to jackpot API
+    console.log('Saving jackpot to storage:', jackpotData);
+    
+    // Return the promise to allow chaining and error handling
     return jackpotAPI.saveJackpotData(jackpotData);
 }
 
@@ -511,16 +514,26 @@ function refreshJackpotFromServer() {
         return;
     }
     
+    // Store the current jackpot value to compare later
+    const currentJackpot = jackpotRoyale;
+    
     jackpotAPI.loadJackpotData()
         .then(data => {
             if (data && typeof data.jackpotRoyale === 'number' && !isNaN(data.jackpotRoyale)) {
-                // Only update if the value is different and no spin is in progress
-                if (Math.abs(jackpotRoyale - data.jackpotRoyale) > 0.01) {
-                    console.log('Updating jackpot from server:', jackpotRoyale, '->', data.jackpotRoyale);
+                // Only update if the server value is higher than our local value
+                // This prevents overwriting our local increments after losing spins
+                if (data.jackpotRoyale > currentJackpot) {
+                    console.log('Updating jackpot from server:', currentJackpot, '->', data.jackpotRoyale);
                     jackpotRoyale = data.jackpotRoyale;
                     lastJackpotWon = data.lastJackpotWon || 0;
                     lastJackpotDate = data.lastJackpotDate || "";
                     updateJackpotDisplays();
+                } else if (Math.abs(currentJackpot - data.jackpotRoyale) > 1000) {
+                    // If there's a large discrepancy (more than $1000), update the server with our value
+                    // This indicates our local value is probably more accurate
+                    console.log('Large jackpot discrepancy detected. Updating server with local value:', 
+                               currentJackpot, 'vs server:', data.jackpotRoyale);
+                    saveJackpotToStorage();
                 }
             }
         })
@@ -1058,10 +1071,20 @@ function checkWins() {
         }
     } else {
         // No win - add stake to jackpot
-        jackpotRoyale += stake;
+        // IMPORTANT: Make sure this value persists by immediately saving to database
+        jackpotRoyale += stake * JACKPOT_INCREMENT_PERCENT / 100;
         jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
+        
+        // Update display first
         updateJackpotDisplays();
-        saveJackpotToStorage();
+        
+        // Save immediately to prevent race conditions
+        saveJackpotToStorage().then(() => {
+            console.log('Jackpot updated after loss:', jackpotRoyale);
+        }).catch(err => {
+            console.error('Failed to update jackpot after loss:', err);
+        });
+        
         showMessage("Try again!");
     }
     

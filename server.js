@@ -99,7 +99,7 @@ const server = http.createServer(async (req, res) => {
                 res.end(JSON.stringify({ error: 'No data provided' }));
                 return;
             }
-
+    
             // Parse the data
             const jackpotData = JSON.parse(decodeURIComponent(data));
             
@@ -112,8 +112,8 @@ const server = http.createServer(async (req, res) => {
                 return;
             }
             
-            // Ensure minimum jackpot value
-            if (jackpotData.jackpotRoyale < 1000) {
+            // Ensure minimum jackpot value is 10000, not 1000 (which might be causing the reset)
+            if (jackpotData.jackpotRoyale < 10000) {
                 jackpotData.jackpotRoyale = 10000.00;
             }
             
@@ -142,18 +142,18 @@ const server = http.createServer(async (req, res) => {
                 );
                 
                 if (rows.length > 0) {
-                    // Update existing record
+                    // Only update last_jackpot fields if they are provided
                     const updateQuery = `
                         UPDATE jackpots 
                         SET jackpot_amount = ?,
-                            last_jackpot_amount = COALESCE(?, last_jackpot_amount),
-                            last_jackpot_date = COALESCE(?, last_jackpot_date)
+                            last_jackpot_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_amount END,
+                            last_jackpot_date = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_date END
                         WHERE jackpot_name = ?
                     `;
                     await connection.query(updateQuery, [
                         jackpotAmount, 
-                        lastJackpotAmount, 
-                        lastJackpotDate, 
+                        lastJackpotAmount, lastJackpotAmount, 
+                        lastJackpotDate, lastJackpotDate, 
                         'main'
                     ]);
                 } else {
