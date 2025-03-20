@@ -16,7 +16,7 @@ let usersFileLock = false;
 
 // MySQL Database configuration
 const dbConfig = {
-    host: 'markpereira.com',     // Update with your DB host
+    host: 'markpereira.com:3306',     // Update with your DB host
     user: 'mark5463_slotadmin', // Update with your DB username
     password: 'Sl0t4dm1n66!', // Update with your DB password
     database: 'mark5463_slots',
