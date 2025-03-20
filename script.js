@@ -1092,13 +1092,18 @@ function checkWins() {
             // Update user stats for jackpot win
             const jackpotAmount = jackpotRoyale;
             
-            console.log(`Win: Adding ${actualWinAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
-            currentUser.totalWon += actualWinAmount;
-            // Ensure proper rounding to exactly 2 decimal places
+            // Log the winnings update
+            console.log(`Jackpot Win: Adding ${jackpotAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
+            
+            // Update total won with the jackpot amount
+            currentUser.totalWon += jackpotAmount;
+            // Ensure proper rounding
             currentUser.totalWon = Math.round(currentUser.totalWon * 100) / 100;
-            console.log(`Total won after update: ${currentUser.totalWon.toFixed(2)}`);
-
-            currentUser.bankroll += actualWinAmount; // Add to bankroll
+            
+            console.log(`Total won after jackpot: ${currentUser.totalWon.toFixed(2)}`);
+            
+            // Update bankroll
+            currentUser.bankroll += jackpotAmount;
             // Ensure proper rounding for bankroll too
             currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
             
@@ -1111,7 +1116,7 @@ function checkWins() {
             
             // Record the jackpot spin
             spinData.winAmount = jackpotAmount;
-        } else {
+        }else {
             // For regular wins, take money from the jackpot
             // Cap the win amount to not exceed the jackpot
             const actualWinAmount = Math.min(winAmount, jackpotRoyale);
@@ -1123,9 +1128,19 @@ function checkWins() {
             // Round to 2 decimal places
             jackpotRoyale = Math.round(jackpotRoyale * 100) / 100;
             
+            // Log the winnings update
+            console.log(`Regular Win: Adding ${actualWinAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
+            
             // Update user stats for regular win
             currentUser.totalWon += actualWinAmount;
+            // Ensure proper rounding to exactly 2 decimal places
+            currentUser.totalWon = Math.round(currentUser.totalWon * 100) / 100;
+            
+            console.log(`Total won after update: ${currentUser.totalWon.toFixed(2)}`);
+            
             currentUser.bankroll += actualWinAmount; // Add to bankroll
+            // Ensure proper rounding for bankroll too
+            currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
             
             // Save updated data
             userAPI.saveUserData(currentUser);
