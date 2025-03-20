@@ -501,25 +501,34 @@ function saveJackpotToStorage() {
 }
 
 function refreshJackpotFromServer() {
-    // Only refresh if not currently spinning
-    if (!isSpinning) {
-        jackpotAPI.loadJackpotData()
-            .then(data => {
-                if (data && typeof data.jackpotRoyale === 'number' && !isNaN(data.jackpotRoyale)) {
-                    // Only update if the value is different
-                    if (Math.abs(jackpotRoyale - data.jackpotRoyale) > 0.01) {
-                        jackpotRoyale = data.jackpotRoyale;
-                        lastJackpotWon = data.lastJackpotWon || 0;
-                        lastJackpotDate = data.lastJackpotDate || "";
-                        updateJackpotDisplays();
-                    }
-                }
-            })
-            .catch(error => {
-                console.warn('Error refreshing jackpot data:', error);
-            });
+    // Don't refresh if currently spinning or handling a win/loss
+    if (isSpinning) {
+        return;
     }
+    
+    // Use a flag to prevent jackpot refresh during the entire spin/win evaluation cycle
+    if (window.jackpotUpdateInProgress) {
+        return;
+    }
+    
+    jackpotAPI.loadJackpotData()
+        .then(data => {
+            if (data && typeof data.jackpotRoyale === 'number' && !isNaN(data.jackpotRoyale)) {
+                // Only update if the value is different and no spin is in progress
+                if (Math.abs(jackpotRoyale - data.jackpotRoyale) > 0.01) {
+                    console.log('Updating jackpot from server:', jackpotRoyale, '->', data.jackpotRoyale);
+                    jackpotRoyale = data.jackpotRoyale;
+                    lastJackpotWon = data.lastJackpotWon || 0;
+                    lastJackpotDate = data.lastJackpotDate || "";
+                    updateJackpotDisplays();
+                }
+            }
+        })
+        .catch(error => {
+            console.warn('Error refreshing jackpot data:', error);
+        });
 }
+
 
 
 // Update jackpot displays
@@ -754,6 +763,10 @@ function spin() {
         return;
     }
     
+    // Set flags to prevent jackpot updates during spin
+    isSpinning = true;
+    window.jackpotUpdateInProgress = true;
+    
     // Deduct stake
     credits -= stake;
     updateCredits();
@@ -763,9 +776,6 @@ function spin() {
     currentUser.bankroll -= stake; // Deduct from bankroll
     userAPI.saveUserData(currentUser);
     updateUserDisplay();
-    
-    // Set spinning flag
-    isSpinning = true;
     
     // Clear win lines
     document.querySelectorAll('.win-line').forEach(line => {
@@ -1060,10 +1070,17 @@ function checkWins() {
         if (success) {
             console.log('Spin recorded successfully');
         }
+        
+        // Only reset the flags after database operations complete
+        // This ensures the jackpot refresh won't happen until everything is done
+        isSpinning = false;
+        window.jackpotUpdateInProgress = false;
+    }).catch(error => {
+        console.error('Error recording spin:', error);
+        // Even if there's an error, we need to reset flags
+        isSpinning = false;
+        window.jackpotUpdateInProgress = false;
     });
-    
-    // Reset spinning flag
-    isSpinning = false;
 }
 
 // Handle jackpot win

@@ -16,7 +16,7 @@ let usersFileLock = false;
 
 // MySQL Database configuration
 const dbConfig = {
-    host: 'markpereira.com:3306',     // Update with your DB host
+    host: 'markpereira.com',     // Update with your DB host
     user: 'mark5463_slotadmin', // Update with your DB username
     password: 'Sl0t4dm1n66!', // Update with your DB password
     database: 'mark5463_slots',
@@ -262,89 +262,115 @@ const server = http.createServer(async (req, res) => {
     // Save user data
     if (pathname === '/save-user') {
         try {
-            if (usersFileLock) {
-                res.writeHead(409, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'User file is being written by another request' }));
-                return;
-            }
-            
-            usersFileLock = true;
-            
             const data = parsedUrl.query.data;
             if (!data) {
-                usersFileLock = false;
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'No user data provided' }));
                 return;
             }
-
+    
             // Parse the data
             const userData = JSON.parse(decodeURIComponent(data));
             const username = userData.username;
             
             if (!username) {
-                usersFileLock = false;
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Username is required' }));
                 return;
             }
             
-            // Load existing users data
-            let usersData = {};
-            if (fs.existsSync(usersDataPath)) {
-                usersData = JSON.parse(fs.readFileSync(usersDataPath, 'utf8'));
-            } else {
-                usersData = {
-                    users: {},
-                    leaderboard: {
-                        topWinner: "",
-                        mostWon: 0
+            // Generate unique fingerprint for this user
+            const uniqueIdentifier = generateFingerprint(req);
+            
+            const connection = await pool.getConnection();
+            try {
+                // Check if user exists
+                const [existingUsers] = await connection.query(
+                    'SELECT * FROM users WHERE unique_identifier = ? AND username = ?',
+                    [uniqueIdentifier, username]
+                );
+                
+                let userId;
+                
+                if (existingUsers.length > 0) {
+                    // Update existing user
+                    userId = existingUsers[0].id;
+                    await connection.query(
+                        `UPDATE users 
+                         SET total_won = ?, 
+                             total_wagered = ?,
+                             bankroll = ?
+                         WHERE id = ?`,
+                        [
+                            userData.totalWon || existingUsers[0].total_won,
+                            userData.totalWagered || existingUsers[0].total_wagered,
+                            userData.bankroll || existingUsers[0].bankroll,
+                            userId
+                        ]
+                    );
+                } else {
+                    // Create new user
+                    const [result] = await connection.query(
+                        `INSERT INTO users 
+                         (username, unique_identifier, total_won, total_wagered, bankroll)
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [
+                            username,
+                            uniqueIdentifier,
+                            userData.totalWon || 0,
+                            userData.totalWagered || 0,
+                            userData.bankroll || 0
+                        ]
+                    );
+                    userId = result.insertId;
+                }
+                
+                // Get updated user data
+                const [updatedUser] = await connection.query(
+                    'SELECT * FROM users WHERE id = ?',
+                    [userId]
+                );
+                
+                // Check if this user has custom symbols
+                const [customSymbols] = await connection.query(
+                    'SELECT symbol_name, image_data FROM custom_symbols WHERE user_id = ?',
+                    [userId]
+                );
+                
+                // Prepare custom symbols object
+                const customSymbolsObj = {};
+                customSymbols.forEach(symbol => {
+                    customSymbolsObj[symbol.symbol_name] = symbol.image_data;
+                });
+                
+                // Get leaderboard data
+                const [leaderboardData] = await connection.query(
+                    `SELECT username, total_won FROM users ORDER BY total_won DESC LIMIT 1`
+                );
+                
+                const leaderboard = {
+                    topWinner: leaderboardData.length > 0 ? leaderboardData[0].username : "",
+                    mostWon: leaderboardData.length > 0 ? leaderboardData[0].total_won : 0
+                };
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    success: true,
+                    data: {
+                        id: updatedUser[0].id,
+                        username: updatedUser[0].username,
+                        totalWon: updatedUser[0].total_won,
+                        totalWagered: updatedUser[0].total_wagered,
+                        bankroll: updatedUser[0].bankroll,
+                        customSymbols: customSymbolsObj,
+                        uniqueIdentifier: uniqueIdentifier
                     },
-                    lastUpdated: new Date().toISOString()
-                };
+                    leaderboard: leaderboard
+                }));
+            } finally {
+                connection.release();
             }
-            
-            // Update or create user
-            if (!usersData.users[username]) {
-                usersData.users[username] = {
-                    totalWon: 0,
-                    totalWagered: 0,
-                    bankroll: 0,
-                    lastPlayed: new Date().toISOString()
-                };
-            }
-            
-            // Update existing user data
-            usersData.users[username].totalWon = userData.totalWon !== undefined ? 
-                userData.totalWon : usersData.users[username].totalWon;
-                
-            usersData.users[username].totalWagered = userData.totalWagered !== undefined ? 
-                userData.totalWagered : usersData.users[username].totalWagered;
-                
-            usersData.users[username].bankroll = userData.bankroll !== undefined ? 
-                userData.bankroll : usersData.users[username].bankroll;
-                
-            usersData.users[username].lastPlayed = new Date().toISOString();
-            
-            // Update leaderboard if necessary
-            if (usersData.users[username].totalWon > usersData.leaderboard.mostWon) {
-                usersData.leaderboard.topWinner = username;
-                usersData.leaderboard.mostWon = usersData.users[username].totalWon;
-            }
-            
-            usersData.lastUpdated = new Date().toISOString();
-            
-            // Save to file
-            fs.writeFileSync(usersDataPath, JSON.stringify(usersData, null, 2));
-            usersFileLock = false;
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                success: true,
-                data: usersData.users[username]
-            }));
         } catch (error) {
-            usersFileLock = false;
             console.error('Error saving user data:', error);
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Failed to save user data' }));
@@ -355,43 +381,60 @@ const server = http.createServer(async (req, res) => {
     // Load user data
     if (pathname === '/load-users') {
         try {
-            if (!fs.existsSync(usersDataPath)) {
-                // Create default users data if it doesn't exist
-                const initialData = {
-                    users: {},
-                    leaderboard: {
-                        topWinner: "",
-                        mostWon: 0
-                    },
-                    lastUpdated: new Date().toISOString()
+            // Generate unique fingerprint for this user
+            const uniqueIdentifier = generateFingerprint(req);
+            
+            const connection = await pool.getConnection();
+            try {
+                // Get all users with this fingerprint
+                const [users] = await connection.query(
+                    'SELECT * FROM users WHERE unique_identifier = ?',
+                    [uniqueIdentifier]
+                );
+                
+                // Get leaderboard data - top winner by total won
+                const [leaderboardData] = await connection.query(
+                    `SELECT username, total_won FROM users ORDER BY total_won DESC LIMIT 1`
+                );
+                
+                const usersObj = {};
+                users.forEach(user => {
+                    usersObj[user.username] = {
+                        id: user.id,
+                        username: user.username,
+                        totalWon: user.total_won,
+                        totalWagered: user.total_wagered,
+                        bankroll: user.bankroll
+                    };
+                });
+                
+                const leaderboard = {
+                    topWinner: leaderboardData.length > 0 ? leaderboardData[0].username : "",
+                    mostWon: leaderboardData.length > 0 ? leaderboardData[0].total_won : 0
                 };
-                fs.writeFileSync(usersDataPath, JSON.stringify(initialData, null, 2));
                 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(initialData));
-                return;
+                res.end(JSON.stringify({
+                    users: usersObj,
+                    leaderboard: leaderboard,
+                    uniqueIdentifier: uniqueIdentifier
+                }));
+            } finally {
+                connection.release();
             }
-            
-            // Read file
-            const usersData = JSON.parse(fs.readFileSync(usersDataPath, 'utf8'));
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(usersData));
         } catch (error) {
             console.error('Error loading users data:', error);
             
             // Return empty data in case of error
-            const defaultData = {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
                 users: {},
                 leaderboard: {
                     topWinner: "",
                     mostWon: 0
                 },
-                lastUpdated: new Date().toISOString()
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(defaultData));
+                uniqueIdentifier: generateFingerprint(req)
+            }));
         }
         return;
     }
