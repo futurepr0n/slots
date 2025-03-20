@@ -92,40 +92,89 @@ const userAPI = {
             userDataToSave.bankroll = Math.round(userDataToSave.bankroll * 100) / 100;
         }
         
+        console.log('Saving user data to server:', userDataToSave);
+        
         // Create a server endpoint URL for saving user data
         const saveUrl = `/save-user?data=${encodeURIComponent(JSON.stringify(userDataToSave))}`;
         
         // Make actual server request to save data
-        return fetch(saveUrl)
-            .then(response => response.json())
-            .then(result => {
-                console.log('User data saved to server:', result);
+        return fetch(saveUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                // If server returns an error status, throw an error with details
+                return response.json().then(errorData => {
+                    throw new Error(errorData.error || `Server error: ${response.status}`);
+                }).catch(jsonError => {
+                    // If error response isn't valid JSON
+                    throw new Error(`Server error: ${response.status} - ${response.statusText}`);
+                });
+            }
+            return response.json();
+        })
+        .then(result => {
+            console.log('User data saved to server:', result);
+            
+            if (result.success) {
+                // Update stored user ID
+                this.userId = result.data.id;
+                this.uniqueIdentifier = result.data.uniqueIdentifier;
                 
-                if (result.success) {
-                    // Update stored user ID
-                    this.userId = result.data.id;
-                    this.uniqueIdentifier = result.data.uniqueIdentifier;
-                    
-                    // Update leaderboard if provided
-                    if (result.leaderboard) {
-                        leaderboard = result.leaderboard;
-                    }
-                    
-                    // Update custom symbols if provided
-                    if (result.data.customSymbols) {
-                        customSymbols = result.data.customSymbols;
-                        applyCustomSymbols();
-                    }
+                // Update leaderboard if provided
+                if (result.leaderboard) {
+                    leaderboard = result.leaderboard;
                 }
                 
-                return result;
-            })
-            .catch(error => {
-                console.error('Error saving user data to server:', error);
-                // Fallback to localStorage if server saving fails
+                // Update custom symbols if provided
+                if (result.data.customSymbols) {
+                    customSymbols = result.data.customSymbols;
+                    applyCustomSymbols();
+                }
+                
+                // Update local data with values returned from server
+                if (result.data) {
+                    if (typeof result.data.totalWon === 'number') {
+                        userData.totalWon = result.data.totalWon;
+                    }
+                    if (typeof result.data.totalWagered === 'number') {
+                        userData.totalWagered = result.data.totalWagered;
+                    }
+                    if (typeof result.data.bankroll === 'number') {
+                        userData.bankroll = result.data.bankroll;
+                    }
+                }
+            } else {
+                console.warn('Server reported failure:', result.error);
+            }
+            
+            return result;
+        })
+        .catch(error => {
+            console.error('Error saving user data to server:', error);
+            
+            // Show a user-friendly message
+            showMessage("Connection error");
+            
+            // Fallback to localStorage if server saving fails
+            try {
                 localStorage.setItem('slotMachineUser', JSON.stringify(userDataToSave));
-                return { success: false, error: error.message };
-            });
+                console.log('User data saved to localStorage as fallback');
+            } catch (storageError) {
+                console.error('Failed to save to localStorage:', storageError);
+            }
+            
+            // Return a valid response format with error info
+            return { 
+                success: false, 
+                error: error.message, 
+                usingLocalStorage: true,
+                data: userDataToSave  // Return the original data
+            };
+        });
     },
     
     loadUsersData: function() {
@@ -135,7 +184,12 @@ const userAPI = {
             
             // Try to load from server first
             fetch(loadUrl)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Server error: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     console.log('Users data loaded from server:', data);
                     
@@ -145,7 +199,7 @@ const userAPI = {
                     resolve(data);
                 })
                 .catch(error => {
-                    console.warn('Could not load users from server, using localStorage fallback');
+                    console.warn('Could not load users from server, using localStorage fallback:', error);
                     // Fallback to localStorage if server loading fails
                     const localData = localStorage.getItem('slotMachineUser');
                     if (localData) {
@@ -244,7 +298,12 @@ const userAPI = {
         }
         
         return fetch(`/load-custom-symbols?userId=${this.userId}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     customSymbols = data.customSymbols || {};
@@ -273,7 +332,12 @@ const userAPI = {
         };
         
         return fetch(`/save-custom-symbol?data=${encodeURIComponent(JSON.stringify(symbolData))}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 return data.success || false;
             })
@@ -291,7 +355,12 @@ const userAPI = {
         }
         
         return fetch(`/delete-custom-symbol?userId=${this.userId}&symbolName=${symbolName}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 return data.success || false;
             })
@@ -312,7 +381,12 @@ const userAPI = {
         spinData.userId = this.userId;
         
         return fetch(`/record-spin?data=${encodeURIComponent(JSON.stringify(spinData))}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 return data.success || false;
             })
@@ -478,22 +552,35 @@ function handleLogin() {
 
 // Update user display
 function updateUserDisplay() {
-    // Round values before displaying (in case they come from the server with precision issues)
-    const totalWon = Math.round(currentUser.totalWon * 100) / 100;
-    const totalWagered = Math.round(currentUser.totalWagered * 100) / 100;
+    // Validate and round totalWon
+    let totalWon = 0;
+    if (typeof currentUser.totalWon === 'number' && !isNaN(currentUser.totalWon)) {
+        totalWon = Math.round(currentUser.totalWon * 100) / 100;
+    }
+    
+    // Validate and round totalWagered
+    let totalWagered = 0;
+    if (typeof currentUser.totalWagered === 'number' && !isNaN(currentUser.totalWagered)) {
+        totalWagered = Math.round(currentUser.totalWagered * 100) / 100;
+    }
+    
+    // Log current values for debugging
+    console.log(`Displaying user stats - totalWon: ${totalWon.toFixed(2)}, totalWagered: ${totalWagered.toFixed(2)}`);
     
     // Update current player
     document.getElementById('current-player').textContent = currentUser.username;
     
-    // Update player stats with fixed precision
-    document.getElementById('player-total-won').textContent = 
-        `$${totalWon.toFixed(2)}`;
-    document.getElementById('player-total-wagered').textContent = 
-        `$${totalWagered.toFixed(2)}`;
+    // Use toFixed(2) to ensure consistent 2 decimal place display
+    document.getElementById('player-total-won').textContent = `$${totalWon.toFixed(2)}`;
+    document.getElementById('player-total-wagered').textContent = `$${totalWagered.toFixed(2)}`;
     
-    // Update leaderboard
+    // Update leaderboard with similar handling
     if (leaderboard.topWinner) {
-        const mostWon = Math.round(leaderboard.mostWon * 100) / 100;
+        let mostWon = 0;
+        if (typeof leaderboard.mostWon === 'number' && !isNaN(leaderboard.mostWon)) {
+            mostWon = Math.round(leaderboard.mostWon * 100) / 100;
+        }
+        
         document.getElementById('top-winner').textContent = leaderboard.topWinner;
         document.getElementById('most-won').textContent = `$${mostWon.toFixed(2)}`;
     }
@@ -588,30 +675,34 @@ function refreshJackpotFromServer() {
     
     jackpotAPI.loadJackpotData()
         .then(data => {
-            if (data && typeof data.jackpotRoyale === 'number' && !isNaN(data.jackpotRoyale)) {
+            // Convert server jackpot to number for proper comparison
+            const serverJackpot = parseFloat(data.jackpotRoyale);
+            
+            if (data && !isNaN(serverJackpot)) {
+                console.log('Comparing jackpots - Local:', currentJackpot.toFixed(2), 'Server:', serverJackpot.toFixed(2));
+                
                 // Only update if the server value is higher than our local value
                 // This prevents overwriting our local increments after losing spins
-                if (data.jackpotRoyale > currentJackpot) {
-                    console.log('Updating jackpot from server:', currentJackpot, '->', data.jackpotRoyale);
-                    jackpotRoyale = data.jackpotRoyale;
-                    lastJackpotWon = data.lastJackpotWon || 0;
+                if (serverJackpot > currentJackpot) {
+                    console.log('Updating jackpot from server:', currentJackpot.toFixed(2), '->', serverJackpot.toFixed(2));
+                    jackpotRoyale = serverJackpot;
+                    lastJackpotWon = parseFloat(data.lastJackpotWon || 0);
                     lastJackpotDate = data.lastJackpotDate || "";
                     updateJackpotDisplays();
-                } else if (Math.abs(currentJackpot - data.jackpotRoyale) > 1000) {
+                } else if (Math.abs(currentJackpot - serverJackpot) > 1000) {
                     // If there's a large discrepancy (more than $1000), update the server with our value
-                    // This indicates our local value is probably more accurate
                     console.log('Large jackpot discrepancy detected. Updating server with local value:', 
-                               currentJackpot, 'vs server:', data.jackpotRoyale);
+                               currentJackpot.toFixed(2), 'vs server:', serverJackpot.toFixed(2));
                     saveJackpotToStorage();
                 }
+            } else {
+                console.error('Invalid jackpot value from server:', data.jackpotRoyale);
             }
         })
         .catch(error => {
             console.warn('Error refreshing jackpot data:', error);
         });
 }
-
-
 
 // Update jackpot displays
 function updateJackpotDisplays() {
@@ -1116,7 +1207,7 @@ function checkWins() {
             
             // Record the jackpot spin
             spinData.winAmount = jackpotAmount;
-        }else {
+        } else {
             // For regular wins, take money from the jackpot
             // Cap the win amount to not exceed the jackpot
             const actualWinAmount = Math.min(winAmount, jackpotRoyale);
@@ -1166,23 +1257,18 @@ function checkWins() {
         }
     } else {
         // No win - add stake to jackpot
-        // IMPORTANT: Make sure this value persists by immediately saving to database
-        //jackpotRoyale += stake * JACKPOT_INCREMENT_PERCENT / 100;
-        //jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
-        
         const incrementAmount = stake * (JACKPOT_INCREMENT_PERCENT / 100);
         console.log(`No win - adding ${incrementAmount.toFixed(2)} to jackpot (${stake} * ${JACKPOT_INCREMENT_PERCENT}%)`);
     
-    // Get previous jackpot for logging
-    const previousJackpot = jackpotRoyale;
+        // Get previous jackpot for logging
+        const previousJackpot = jackpotRoyale;
+        
+        // Add to jackpot
+        jackpotRoyale += incrementAmount;
+        jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
+        
+        console.log(`Jackpot updated: ${previousJackpot.toFixed(2)} -> ${jackpotRoyale.toFixed(2)}`);
     
-    // Add to jackpot
-    jackpotRoyale += incrementAmount;
-    jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
-    
-    console.log(`Jackpot updated: ${previousJackpot.toFixed(2)} -> ${jackpotRoyale.toFixed(2)}`);
-    
-
         // Update display first
         updateJackpotDisplays();
         
@@ -1529,21 +1615,28 @@ function loadCustomSymbols() {
     const savedSymbols = localStorage.getItem('slotMachineCustomSymbols');
     
     if (savedSymbols) {
-        customSymbols = JSON.parse(savedSymbols);
-        
-        // Update the previews in the customizer
-        for (const symbolType in customSymbols) {
-            const dataURL = customSymbols[symbolType];
-            const previewElement = document.querySelector(`.symbol-file[data-symbol="${symbolType}"]`)
-                                         .closest('.symbol-row')
-                                         .querySelector('.symbol-content');
+        try {
+            customSymbols = JSON.parse(savedSymbols);
             
-            previewElement.style.backgroundImage = `url('${dataURL}')`;
-            previewElement.classList.add('custom');
+            // Update the previews in the customizer
+            for (const symbolType in customSymbols) {
+                const dataURL = customSymbols[symbolType];
+                const previewElement = document.querySelector(`.symbol-file[data-symbol="${symbolType}"]`)
+                                            ?.closest('.symbol-row')
+                                            ?.querySelector('.symbol-content');
+                
+                if (previewElement) {
+                    previewElement.style.backgroundImage = `url('${dataURL}')`;
+                    previewElement.classList.add('custom');
+                }
+            }
+            
+            // Apply custom symbols to the game
+            applyCustomSymbols();
+        } catch (error) {
+            console.error('Error loading custom symbols from localStorage:', error);
+            customSymbols = {};
         }
-        
-        // Apply custom symbols to the game
-        applyCustomSymbols();
     }
 }
 
