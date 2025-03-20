@@ -327,7 +327,7 @@ const jackpotAPI = {
                 this.lockPending = false;
                 return false;
             });
-    }/* ,
+    } ,
     
     loadJackpotData: function() {
         return fetch('/load-jackpot')
@@ -345,7 +345,7 @@ const jackpotAPI = {
                     lastUpdated: new Date().toISOString()
                 };
             });
-    } */
+    } 
 };
 
 // Initialize the game
