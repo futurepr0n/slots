@@ -819,7 +819,8 @@ function createReels() {
             spinSpeed: 0,
             lastUpdate: 0,
             stopping: false,
-            stopPosition: 0
+            stopPosition: 0,
+            clonedSymbols: [] // Add an array to track cloned symbols
         };
         
         // Get weighted symbols array
@@ -850,7 +851,8 @@ function createReels() {
             });
             
             stripElement.appendChild(clonedData.element);
-            // Note: We don't add these to reel.symbols as they're just visual duplicates
+            // Now also track these cloned symbols
+            reel.clonedSymbols.push(clonedData);
         }
         
         // Position the strip to show the middle symbols initially
@@ -859,6 +861,11 @@ function createReels() {
         
         // Add to reels array
         reels.push(reel);
+    }
+
+    // Apply custom symbols after creating reels
+    if (Object.keys(customSymbols).length > 0) {
+        applyCustomSymbols();
     }
 }
 
@@ -1281,6 +1288,10 @@ function checkWins() {
         
         showMessage("Try again!");
     }
+
+    if (Object.keys(customSymbols).length > 0) {
+        applyCustomSymbols();
+    }
     
     // Record the spin in database
     userAPI.recordSpin(spinData).then(success => {
@@ -1644,8 +1655,10 @@ function loadCustomSymbols() {
 function applyCustomSymbols() {
     // For each reel
     reels.forEach(reel => {
-        // For each symbol in the reel
-        reel.symbols.forEach(symbolData => {
+        // Process both main symbols and cloned symbols
+        const allSymbols = [...reel.symbols, ...(reel.clonedSymbols || [])];
+        
+        allSymbols.forEach(symbolData => {
             const symbolType = symbolData.type;
             const symbolElement = symbolData.element;
             const symbolContent = symbolElement.querySelector(`.symbol-content`);

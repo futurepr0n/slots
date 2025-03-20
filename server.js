@@ -430,17 +430,18 @@ const server = http.createServer(async (req, res) => {
                     const userResult = {
                         id: updatedUser[0].id,
                         username: updatedUser[0].username,
-                        totalWon: parseFloat(updatedUser[0].total_won || 0),
-                        totalWagered: parseFloat(updatedUser[0].total_wagered || 0),
-                        bankroll: parseFloat(updatedUser[0].bankroll || 0),
+                        totalWon: Math.abs(parseFloat(updatedUser[0].total_won || 0)) < 0.001 ? 0 : parseFloat(updatedUser[0].total_won || 0),
+                        totalWagered: Math.abs(parseFloat(updatedUser[0].total_wagered || 0)) < 0.001 ? 0 : parseFloat(updatedUser[0].total_wagered || 0),
+                        bankroll: Math.abs(parseFloat(updatedUser[0].bankroll || 0)) < 0.001 ? 0 : parseFloat(updatedUser[0].bankroll || 0),
                         uniqueIdentifier: uniqueIdentifier
                     };
                     
-                    // Round values for consistency
-                    userResult.totalWon = Math.round(userResult.totalWon * 100) / 100;
-                    userResult.totalWagered = Math.round(userResult.totalWagered * 100) / 100;
-                    userResult.bankroll = Math.round(userResult.bankroll * 100) / 100;
-                    
+
+                    // Round values for consistency - using our improved rounding
+                    userResult.totalWon = roundMoney(userResult.totalWon);
+                    userResult.totalWagered = roundMoney(userResult.totalWagered);
+                    userResult.bankroll = roundMoney(userResult.bankroll);
+                                        
                     // Check if this user has custom symbols - in a try-catch to avoid failing the whole request
                     let customSymbolsObj = {};
                     try {
@@ -909,6 +910,17 @@ async function initializeDatabase() {
         console.error('Error initializing database:', error);
     }
 }
+function roundMoney(value) {
+    if (typeof value === 'number' && !isNaN(value)) {
+        // Handle very small values (close to zero) to prevent floating point precision issues
+        if (Math.abs(value) < 0.001) {
+            return 0;
+        }
+        return Math.round(value * 100) / 100;
+    }
+    return value;
+}
+
 
 // Start server
 async function startServer() {
