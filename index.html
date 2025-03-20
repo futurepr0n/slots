@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Strike Slot Machine</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="header">
+            <div class="logo">JACKPOT ROYALE</div>
+            <div id="clock">23:47</div>
+        </div>
+        
+        <div id="jackpot-display">
+            <div class="jackpot-main" id="main-jackpot">$13,059.82</div>
+            <div class="jackpot-active">ACTIVE ON ANY SPIN</div>
+            
+            <div class="jackpot-row">
+                <div class="jackpot-box">
+                    <div class="jackpot-label">LAST JACKPOT WON</div>
+                    <div class="jackpot-value" id="last-jackpot">NONE YET</div>
+                </div>
+                <div class="jackpot-box">
+                    <div class="jackpot-label">JACKPOT DATE</div>
+                    <div class="jackpot-value" id="jackpot-date">NEVER</div>
+                </div>
+            </div>
+            
+            <!-- Leaderboard -->
+            <div class="jackpot-row">
+                <div class="jackpot-box leaderboard-box">
+                    <div class="jackpot-label">TOP WINNER</div>
+                    <div class="jackpot-value" id="top-winner">NONE YET</div>
+                </div>
+                <div class="jackpot-box">
+                    <div class="jackpot-label">MOST WON</div>
+                    <div class="jackpot-value" id="most-won">$0.00</div>
+                </div>
+            </div>
+            
+            <!-- Player Stats -->
+            <div id="player-stats">
+                <div class="player-name">PLAYER: <span id="current-player">GUEST</span></div>
+                <div class="player-stats">
+                    <span>TOTAL WON: <span id="player-total-won">$0.00</span></span>
+                    <span>TOTAL WAGERED: <span id="player-total-wagered">$0.00</span></span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="prizes">
+            <div class="prize prize-grand">
+                <div>GRAND</div>
+                <div>1,000.00</div>
+            </div>
+            <div class="prize prize-major">
+                <div>MAJOR</div>
+                <div>150.00</div>
+            </div>
+            <div class="prize prize-minor">
+                <div>MINOR</div>
+                <div>50.00</div>
+            </div>
+            <div class="prize prize-mini">
+                <div>MINI</div>
+                <div>25.00</div>
+            </div>
+        </div>
+        
+        <div id="title">CASH STRIKE</div>
+        
+        <div id="slot-machine">
+            <div class="win-line top"></div>
+            <div class="win-line middle"></div>
+            <div class="win-line bottom"></div>
+            
+            <div class="reels-container">
+                <!-- Traditional spinning reels -->
+                <div class="reel-window">
+                    <div class="reel" id="reel1">
+                        <div class="reel-strip" id="strip1"></div>
+                    </div>
+                </div>
+                <div class="reel-window">
+                    <div class="reel" id="reel2">
+                        <div class="reel-strip" id="strip2"></div>
+                    </div>
+                </div>
+                <div class="reel-window">
+                    <div class="reel" id="reel3">
+                        <div class="reel-strip" id="strip3"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="win-animation"></div>
+        </div>
+        
+        <div id="message">PLACE YOUR BETS!</div>
+        
+        <div id="controls">
+            <div class="btn">≡</div>
+            <div class="btn" id="minus-btn">−</div>
+            <div class="btn" id="spin-btn">↻</div>
+            <div class="btn" id="plus-btn">+</div>
+            <div class="btn" id="info-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="white" stroke-width="2"/>
+                    <rect x="8" y="8" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="13" y="8" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="8" y="13" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="13" y="13" width="3" height="3" rx="1" fill="white"/>
+                </svg>
+            </div>
+        </div>
+        
+        <div id="status-bar">
+            <div class="status-text" id="stake-display">STAKE $1.00</div>
+            <div class="status-text" id="credit-display">CREDIT $100.00</div>
+        </div>
+    </div>
+    
+    <!-- Paytable Overlay -->
+    <div id="paytable-overlay">
+        <div id="paytable-content">
+            <div class="paytable-title">SYMBOL PAYOUTS</div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content star"></div>
+                </div>
+                <div class="paytable-value">× 3 = JACKPOT ROYALE!</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content bell"></div>
+                </div>
+                <div class="paytable-value">× 3 = $20.00 × STAKE</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content watermelon"></div>
+                </div>
+                <div class="paytable-value">× 3 = $15.00 × STAKE</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content grape">
+                        <div class="grape-ball"></div>
+                        <div class="grape-ball"></div>
+                        <div class="grape-ball"></div>
+                        <div class="grape-ball"></div>
+                        <div class="grape-ball"></div>
+                        <div class="grape-ball"></div>
+                    </div>
+                </div>
+                <div class="paytable-value">× 3 = $12.00 × STAKE</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content cherry"></div>
+                </div>
+                <div class="paytable-value">× 3 = $10.00 × STAKE</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content plum"></div>
+                </div>
+                <div class="paytable-value">× 3 = $8.00 × STAKE</div>
+            </div>
+            <div class="paytable-row">
+                <div class="paytable-symbol">
+                    <div class="symbol-content lemon"></div>
+                </div>
+                <div class="paytable-value">× 3 = $5.00 × STAKE</div>
+            </div>
+            <div class="paytable-close">
+                <button class="paytable-close-btn">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>WELCOME TO CASH STRIKE</h2>
+            </div>
+            <div class="modal-body">
+                <p>Please enter your username to play:</p>
+                <input type="text" id="username-input" placeholder="Enter username" maxlength="15">
+                <button id="login-button">PLAY NOW</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

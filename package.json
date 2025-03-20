@@ -1,0 +1,12 @@
+{
+  "name": "cash-strike-slots",
+  "version": "1.0.0",
+  "description": "Cash Strike Slot Machine Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

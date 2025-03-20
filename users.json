@@ -1,0 +1,14 @@
+{
+  "users": {
+    "mark": {
+      "totalWon": 0,
+      "totalWagered": 4,
+      "lastPlayed": "2025-03-20T04:14:41.372Z"
+    }
+  },
+  "leaderboard": {
+    "topWinner": "",
+    "mostWon": 0
+  },
+  "lastUpdated": "2025-03-20T04:14:41.372Z"
+}

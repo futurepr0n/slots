@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Strike Slot Machine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            color: white;
+            overflow-x: hidden;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(to bottom, #800000, #400000);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        
+        #header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: linear-gradient(to right, #600, #900);
+            border-bottom: 2px solid #fc0;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fc0;
+            text-shadow: 0 0 10px rgba(255, 120, 0, 0.7);
+        }
+        
+        #jackpot-display {
+            text-align: center;
+            padding: 10px 0;
+        }
+        
+        .jackpot-main {
+            font-size: 30px;
+            font-weight: bold;
+            color: #fc0;
+            text-shadow: 0 0 10px rgba(255, 120, 0, 0.7);
+            padding: 10px;
+            background: #500;
+            border-radius: 5px;
+            border: 2px solid #fc0;
+            margin-bottom: 5px;
+        }
+        
+        .jackpot-active {
+            font-size: 14px;
+            color: #fc0;
+        }
+        
+        .jackpot-row {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 10px;
+        }
+        
+        .jackpot-box {
+            background: #300;
+            border: 2px solid #f70;
+            border-radius: 5px;
+            padding: 8px;
+            width: 45%;
+            position: relative;
+        }
+        
+        .jackpot-box::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #f70, #f00, #f70);
+            animation: fire 2s infinite linear;
+        }
+        
+        @keyframes fire {
+            0% { background-position: 0 0; }
+            100% { background-position: 100px 0; }
+        }
+        
+        .jackpot-label {
+            font-size: 14px;
+            color: white;
+        }
+        
+        .jackpot-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fc0;
+        }
+        
+        #prizes {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+        }
+        
+        .prize {
+            text-align: center;
+            font-weight: bold;
+            border-radius: 5px;
+            padding: 5px;
+            font-size: 12px;
+        }
+        
+        .prize-grand {
+            color: #fc0;
+            border: 1px solid #fc0;
+        }
+        
+        .prize-major {
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+        
+        .prize-minor {
+            color: #09f;
+            border: 1px solid #09f;
+        }
+        
+        .prize-mini {
+            color: #f0f;
+            border: 1px solid #f0f;
+        }
+        
+        #title {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            color: #fc0;
+            text-shadow: 0 0 10px #f00;
+            margin: 10px 0;
+        }
+        
+        #slot-machine {
+            position: relative;
+            width: 90%;
+            margin: 15px auto;
+            background: #000;
+            border: 5px solid #f70;
+            border-radius: 10px;
+            padding: 5px;
+            box-shadow: 0 0 15px rgba(255, 120, 0, 0.6);
+        }
+        
+        .reels-container {
+            display: flex;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        .win-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: #f70;
+            box-shadow: 0 0 10px #f00;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .win-line.top {
+            top: 33.33%;
+        }
+        
+        .win-line.middle {
+            top: 50%;
+        }
+        
+        .win-line.bottom {
+            top: 66.67%;
+        }
+        
+        .win-line.active {
+            opacity: 1;
+        }
+        
+        .reel {
+            flex: 1;
+            height: 300px;
+            position: relative;
+            overflow: hidden;
+            background: #111;
+            margin: 0 2px;
+            border: 1px solid #333;
+        }
+        
+        .reel-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            box-shadow: inset 0 0 10px rgba(255, 120, 0, 0.3);
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .symbols-container {
+            position: absolute;
+            width: 100%;
+            transition: top 0.1s linear;
+        }
+        
+        .symbol {
+            width: 100%;
+            height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+        
+        .symbol-content {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.3));
+        }
+        
+        .cherry {
+            background: radial-gradient(circle, #f00, #900);
+            border-radius: 50%;
+            position: relative;
+        }
+        
+        .cherry::before {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            background: radial-gradient(circle, #f55, #c00);
+            left: 20%;
+        }
+        
+        .cherry::after {
+            content: '';
+            position: absolute;
+            width: 10%;
+            height: 40%;
+            background: #060;
+            top: -30%;
+            border-radius: 5px;
+        }
+        
+        .watermelon {
+            width: 80%;
+            height: 60%;
+            background: linear-gradient(to bottom, #080, #0a0);
+            border-radius: 50% 50% 0 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .watermelon::before {
+            content: '';
+            position: absolute;
+            width: 90%;
+            height: 80%;
+            background: linear-gradient(to bottom, #f00, #c00);
+            border-radius: 50% 50% 0 0;
+            top: 10%;
+            left: 5%;
+        }
+        
+        .watermelon::after {
+            content: '';
+            position: absolute;
+            width: 80%;
+            height: 70%;
+            background: repeating-radial-gradient(circle, #000 0, #000 2px, transparent 2px, transparent 10px);
+            opacity: 0.5;
+            border-radius: 50% 50% 0 0;
+            top: 15%;
+            left: 10%;
+        }
+        
+        .star {
+            position: relative;
+            width: 0;
+            height: 0;
+            border-right: 40px solid transparent;
+            border-bottom: 28px solid #fc0;
+            border-left: 40px solid transparent;
+            transform: rotate(35deg);
+        }
+        
+        .star::before {
+            content: '';
+            position: absolute;
+            height: 0;
+            width: 0;
+            top: -18px;
+            left: -25px;
+            border-bottom: 28px solid #fc0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            transform: rotate(-35deg);
+        }
+        
+        .star::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: -41px;
+            width: 0;
+            height: 0;
+            border-right: 40px solid transparent;
+            border-bottom: 28px solid #fc0;
+            border-left: 40px solid transparent;
+            transform: rotate(-70deg);
+        }
+        
+        .bell {
+            width: 60%;
+            height: 70%;
+            background: linear-gradient(to bottom, #fc0, #c90);
+            border-radius: 50% 50% 10% 10% / 50% 50% 20% 20%;
+            position: relative;
+        }
+        
+        .bell::before {
+            content: '';
+            position: absolute;
+            width: 20%;
+            height: 20%;
+            background: #fc0;
+            border-radius: 50%;
+            bottom: -10%;
+            left: 40%;
+        }
+        
+        .bell::after {
+            content: '';
+            position: absolute;
+            width: 20%;
+            height: 10%;
+            background: #c90;
+            top: -10%;
+            left: 40%;
+        }
+        
+        .grape {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+            width: 70%;
+            height: 70%;
+        }
+        
+        .grape-ball {
+            background: radial-gradient(circle, #a0f, #70b);
+            border-radius: 50%;
+        }
+        
+        .lemon {
+            width: 70%;
+            height: 60%;
+            background: linear-gradient(to bottom, #ff0, #cc0);
+            border-radius: 50% / 60% 60% 40% 40%;
+            transform: rotate(-15deg);
+        }
+        
+        .plum {
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(circle, #a0f, #70b);
+            border-radius: 50%;
+            position: relative;
+        }
+        
+        .plum::after {
+            content: '';
+            position: absolute;
+            width: 10%;
+            height: 30%;
+            background: #060;
+            top: -20%;
+            border-radius: 5px;
+        }
+        
+        #message {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            height: 40px;
+            margin: 10px 0;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+        
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: linear-gradient(to bottom, #600, #300);
+            border-top: 2px solid #fc0;
+        }
+        
+        .btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #500;
+            border: 2px solid white;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+        
+        #spin-btn {
+            width: 70px;
+            height: 70px;
+            background: radial-gradient(circle, #900, #600);
+            border: 3px solid white;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn:hover {
+            filter: brightness(1.2);
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 20px;
+            background: #000;
+            border-top: 1px solid #333;
+        }
+        
+        .status-text {
+            font-weight: bold;
+            color: #fc0;
+        }
+        
+        .win-animation {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent, #f000);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 20;
+            transition: opacity 0.5s;
+        }
+        
+        .win-animation.active {
+            opacity: 0.5;
+            animation: pulse 0.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { opacity: 0.2; }
+            to { opacity: 0.6; }
+        }
+        
+        .particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fc0;
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        @keyframes particle-animation {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+        
+        @keyframes fire-bg {
+            0% { background-position: 0 0; }
+            100% { background-position: 400px 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="header">
+            <div class="logo">JACKPOT ROYALE</div>
+            <div>23:47</div>
+        </div>
+        
+        <div id="jackpot-display">
+            <div class="jackpot-main">$13,059.82</div>
+            <div class="jackpot-active">ACTIVE ON ANY SPIN</div>
+            
+            <div class="jackpot-row">
+                <div class="jackpot-box">
+                    <div class="jackpot-label">MAJOR POT</div>
+                    <div class="jackpot-value">$5,849.95</div>
+                </div>
+                <div class="jackpot-box">
+                    <div class="jackpot-label">MAXI POT</div>
+                    <div class="jackpot-value">$1,082.82</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="prizes">
+            <div class="prize prize-grand">
+                <div>GRAND</div>
+                <div>1,000.00</div>
+            </div>
+            <div class="prize prize-major">
+                <div>MAJOR</div>
+                <div>150.00</div>
+            </div>
+            <div class="prize prize-minor">
+                <div>MINOR</div>
+                <div>50.00</div>
+            </div>
+            <div class="prize prize-mini">
+                <div>MINI</div>
+                <div>25.00</div>
+            </div>
+        </div>
+        
+        <div id="title">CASH STRIKE</div>
+        
+        <div id="slot-machine">
+            <div class="win-line top"></div>
+            <div class="win-line middle"></div>
+            <div class="win-line bottom"></div>
+            
+            <div class="reels-container">
+                <div class="reel" id="reel1">
+                    <div class="symbols-container" id="symbols1"></div>
+                    <div class="reel-overlay"></div>
+                </div>
+                <div class="reel" id="reel2">
+                    <div class="symbols-container" id="symbols2"></div>
+                    <div class="reel-overlay"></div>
+                </div>
+                <div class="reel" id="reel3">
+                    <div class="symbols-container" id="symbols3"></div>
+                    <div class="reel-overlay"></div>
+                </div>
+            </div>
+            
+            <div class="win-animation"></div>
+        </div>
+        
+        <div id="message">PLACE YOUR BETS!</div>
+        
+        <div id="controls">
+            <div class="btn">≡</div>
+            <div class="btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <circle cx="12" cy="12" r="8" fill="white"/>
+                    <circle cx="12" cy="12" r="5" fill="#600"/>
+                </svg>
+            </div>
+            <div class="btn" id="spin-btn">↻</div>
+            <div class="btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="white" stroke-width="2"/>
+                    <rect x="8" y="8" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="13" y="8" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="8" y="13" width="3" height="3" rx="1" fill="white"/>
+                    <rect x="13" y="13" width="3" height="3" rx="1" fill="white"/>
+                </svg>
+            </div>
+            <div class="btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                </svg>
+            </div>
+        </div>
+        
+        <div id="status-bar">
+            <div class="status-text">STAKE $1.00</div>
+            <div class="status-text" id="credit-display">CREDIT $100.00</div>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let credits = 100;
+        let stake = 1;
+        let isSpinning = false;
+        let reels = [];
+        let winAmount = 0;
+        
+        // Symbol definitions
+        const symbols = [
+            { name: 'cherry', value: 10, cssClass: 'cherry' },
+            { name: 'watermelon', value: 15, cssClass: 'watermelon' },
+            { name: 'star', value: 25, cssClass: 'star' },
+            { name: 'bell', value: 20, cssClass: 'bell' },
+            { name: 'grape', value: 12, cssClass: 'grape', hasInnerHTML: true },
+            { name: 'lemon', value: 5, cssClass: 'lemon' },
+            { name: 'plum', value: 8, cssClass: 'plum' }
+        ];
+        
+        // Initialize the game
+        function initGame() {
+            // Create reels
+            createReels();
+            
+            // Add event listeners
+            document.getElementById('spin-btn').addEventListener('click', spin);
+            
+            // Update credit display
+            updateCredits();
+        }
+        
+        // Create reels with symbols
+        function createReels() {
+            reels = [];
+            
+            for (let i = 1; i <= 3; i++) {
+                const symbolsContainer = document.getElementById(`symbols${i}`);
+                symbolsContainer.innerHTML = '';
+                
+                // Create reel data
+                const reel = {
+                    element: symbolsContainer,
+                    symbols: [],
+                    position: 0,
+                    finalPosition: 0
+                };
+                
+                // Add symbols to reel (more symbols for smooth spinning)
+                const symbolCount = 15;
+                
+                for (let j = 0; j < symbolCount; j++) {
+                    // Select a random symbol
+                    const symbolIndex = Math.floor(Math.random() * symbols.length);
+                    const symbol = symbols[symbolIndex];
+                    
+                    // Create symbol element
+                    const symbolElement = document.createElement('div');
+                    symbolElement.className = 'symbol';
+                    
+                    const symbolContent = document.createElement('div');
+                    symbolContent.className = `symbol-content ${symbol.cssClass}`;
+                    
+                    // For grape, add inner elements
+                    if (symbol.name === 'grape') {
+                        for (let k = 0; k < 9; k++) {
+                            const grapeBall = document.createElement('div');
+                            grapeBall.className = 'grape-ball';
+                            symbolContent.appendChild(grapeBall);
+                        }
+                    }
+                    
+                    symbolElement.appendChild(symbolContent);
+                    symbolsContainer.appendChild(symbolElement);
+                    
+                    // Store symbol data
+                    reel.symbols.push({
+                        element: symbolElement,
+                        type: symbol.name,
+                        value: symbol.value
+                    });
+                }
+                
+                // Reset position
+                reel.element.style.top = '0px';
+                
+                // Add to reels array
+                reels.push(reel);
+            }
+        }
+        
+        // Update credit display
+        function updateCredits() {
+            document.getElementById('credit-display').textContent = `CREDIT $${credits.toFixed(2)}`;
+        }
+        
+        // Show message
+        function showMessage(text) {
+            const messageElement = document.getElementById('message');
+            messageElement.textContent = text;
+            
+            // Clear message after a delay unless it's "PLACE YOUR BETS!"
+            if (text !== "PLACE YOUR BETS!") {
+                setTimeout(() => {
+                    messageElement.textContent = "PLACE YOUR BETS!";
+                }, 3000);
+            }
+        }
+        
+        // Spin the reels
+        function spin() {
+            // Check if already spinning
+            if (isSpinning) return;
+            
+            // Check if enough credits
+            if (credits < stake) {
+                showMessage("Not enough credits!");
+                return;
+            }
+            
+            // Deduct stake
+            credits -= stake;
+            updateCredits();
+            
+            // Set spinning flag
+            isSpinning = true;
+            
+            // Clear win lines
+            document.querySelectorAll('.win-line').forEach(line => {
+                line.classList.remove('active');
+            });
+            
+            // Hide win animation
+            document.querySelector('.win-animation').classList.remove('active');
+            
+            // Show message
+            showMessage("Good luck!");
+            
+            // Spin each reel with different timing
+            reels.forEach((reel, index) => {
+                // Calculate spin parameters
+                const symbolHeight = 100; // Height of each symbol in pixels
+                const totalSymbols = reel.symbols.length;
+                
+                // Decide final position
+                const randomStopIndex = Math.floor(Math.random() * (totalSymbols - 3));
+                const spinDistance = totalSymbols * symbolHeight + randomStopIndex * symbolHeight;
+                
+                // Save final position for win checking
+                reel.finalPosition = randomStopIndex;
+                
+                // Initial no-transition reset
+                reel.element.style.transition = 'none';
+                reel.element.style.top = '0px';
+                
+                // Force reflow
+                void reel.element.offsetHeight;
+                
+                // Start spinning with timing based on reel index
+                const spinDuration = 1 + index * 0.5;
+                reel.element.style.transition = `top ${spinDuration}s cubic-bezier(0.2, 0.7, 0.3, 1)`;
+                reel.element.style.top = `-${spinDistance}px`;
+                
+                // When spinning completes
+                setTimeout(() => {
+                    // Snap to exact position
+                    reel.element.style.transition = 'none';
+                    reel.element.style.top = `-${randomStopIndex * symbolHeight}px`;
+                    reel.position = randomStopIndex;
+                    
+                    // If this is the last reel, check for wins
+                    if (index === reels.length - 1) {
+                        setTimeout(checkWins, 300);
+                    }
+                }, spinDuration * 1000);
+            });
+        }
+        
+        // Check for winning combinations
+        function checkWins() {
+            // Get visible symbols for each row
+            const visibleSymbols = [];
+            
+            // For each row (top, middle, bottom)
+            for (let row = 0; row < 3; row++) {
+                const rowSymbols = [];
+                
+                // Get symbol at this position for each reel
+                for (let i = 0; i < reels.length; i++) {
+                    const reel = reels[i];
+                    const symbolIndex = (reel.finalPosition + row) % reel.symbols.length;
+                    rowSymbols.push(reel.symbols[symbolIndex]);
+                }
+                
+                visibleSymbols.push(rowSymbols);
+            }
+            
+            // Check each row for wins
+            winAmount = 0;
+            const winningLines = [];
+            
+            visibleSymbols.forEach((row, rowIndex) => {
+                // Check if all symbols in the row match
+                if (row[0].type === row[1].type && row[1].type === row[2].type) {
+                    const lineValue = row[0].value * stake;
+                    winAmount += lineValue;
+                    
+                    // Add to winning lines
+                    if (rowIndex === 0) winningLines.push('top');
+                    else if (rowIndex === 1) winningLines.push('middle');
+                    else winningLines.push('bottom');
+                }
+            });
+            
+            // Check for any special prize combinations
+            const specialPrize = checkForSpecialPrizes(visibleSymbols);
+            if (specialPrize > 0) {
+                winAmount += specialPrize;
+            }
+            
+            // Show winning lines
+            winningLines.forEach(line => {
+                document.querySelector(`.win-line.${line}`).classList.add('active');
+            });
+            
+            // Show win animation if won
+            if (winAmount > 0) {
+                // Show win animation
+                document.querySelector('.win-animation').classList.add('active');
+                
+                // Add credits
+                credits += winAmount;
+                updateCredits();
+                
+                // Show message
+                showMessage(`WIN $${winAmount.toFixed(2)}!`);
+                
+                // Create particles for big wins
+                if (winAmount >= 10) {
+                    createWinParticles();
+                }
+            } else {
+                showMessage("Try again!");
+            }
+            
+            // Reset spinning flag
+            isSpinning = false;
+        }
+        
+        // Check for special prize combinations
+        function checkForSpecialPrizes(visibleSymbols) {
+            // This is a simplified implementation - you can expand with more complex rules
+            
+            // Check for all stars (jackpot)
+            let starCount = 0;
+            visibleSymbols.forEach(row => {
+                row.forEach(symbol => {
+                    if (symbol.type === 'star') starCount++;
+                });
+            });
+            
+            if (starCount >= 7) return 1000 * stake; // Grand prize
+            if (starCount >= 5) return 150 * stake;  // Major prize
+            if (starCount >= 3) return 50 * stake;   // Minor prize
+            
+            // Check for other special combinations
+            return 0;
+        }
+        
+        // Create particles for win animation
+        function createWinParticles() {
+            const slotMachine = document.getElementById('slot-machine');
+            
+            // Create multiple particles
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                // Random position, color and size
+                const size = Math.random() * 10 + 5;
+                const colors = ['#fc0', '#f70', '#0f0', '#09f', '#f0f'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.backgroundColor = color;
+                
+                // Starting position
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                particle.style.left = `${x}%`;
+                particle.style.top = `${y}%`;
+                
+                // Animation
+                const tx = (Math.random() - 0.5) * 200;
+                const ty = (Math.random() - 0.5) * 200;
+                particle.style.setProperty('--tx', `${tx}px`);
+                particle.style.setProperty('--ty', `${ty}px`);
+                
+                particle.style.animation = `particle-animation ${Math.random() * 1 + 1}s forwards`;
+                
+                // Add to container
+                slotMachine.appendChild(particle);
+                
+                // Remove after animation
+                setTimeout(() => {
+                    particle.remove();
+                }, 2000);
+            }
+        }
+        
+        // Initialize game on load
+        window.addEventListener('load', initGame);
+    </script>
+</body>
+</html>
