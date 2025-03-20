@@ -838,6 +838,10 @@ body {
 
 
 /* Symbol Customizer Modal Styles */
+#symbol-customizer-modal {
+    display: none;  /* This ensures the modal is hidden initially */
+}
+
 #symbol-customizer-modal .modal-content {
     max-width: 600px;
     max-height: 80vh;

@@ -1108,15 +1108,47 @@ function handleSymbolUpload(event) {
 function resetSymbol(event) {
     const symbolType = event.target.dataset.symbol;
     
-    // Remove the custom symbol
+    // Remove the custom symbol from our custom symbols object
     delete customSymbols[symbolType];
     
-    // Update the preview
+    // Update the preview in the modal
     const previewElement = event.target.closest('.symbol-row').querySelector('.symbol-content');
     previewElement.style.backgroundImage = '';
     previewElement.classList.remove('custom');
     
-    // Save to localStorage
+    // Important: Also need to reset all current instances of this symbol on the reels
+    reels.forEach(reel => {
+        reel.symbols.forEach(symbolData => {
+            if (symbolData.type === symbolType) {
+                const symbolElement = symbolData.element;
+                const symbolContent = symbolElement.querySelector(`.symbol-content`);
+                
+                // Reset styling
+                symbolContent.style.backgroundImage = '';
+                symbolContent.classList.remove('custom');
+                
+                // For grape, need to ensure grape balls are visible again
+                if (symbolType === 'grape') {
+                    const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
+                    if (grapeBalls.length === 0) {
+                        // Need to recreate grape balls if they were removed
+                        for (let k = 0; k < 6; k++) {
+                            const grapeBall = document.createElement('div');
+                            grapeBall.className = 'grape-ball';
+                            symbolContent.appendChild(grapeBall);
+                        }
+                    } else {
+                        // Make existing grape balls visible
+                        grapeBalls.forEach(ball => {
+                            ball.style.display = '';
+                        });
+                    }
+                }
+            }
+        });
+    });
+    
+    // Save the updated customSymbols to localStorage
     localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
 }
 
@@ -1162,15 +1194,34 @@ function applyCustomSymbols() {
         // For each symbol in the reel
         reel.symbols.forEach(symbolData => {
             const symbolType = symbolData.type;
+            const symbolElement = symbolData.element;
+            const symbolContent = symbolElement.querySelector(`.symbol-content`);
             
-            // If this symbol has a custom image
+            // First reset any custom styling
+            symbolContent.style.backgroundImage = '';
+            symbolContent.classList.remove('custom');
+            
+            // Re-show grape balls if this is a grape symbol
+            if (symbolType === 'grape') {
+                const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
+                grapeBalls.forEach(ball => {
+                    ball.style.display = '';
+                });
+            }
+            
+            // If this symbol has a custom image, apply it
             if (customSymbols[symbolType]) {
-                const symbolElement = symbolData.element;
-                const symbolContent = symbolElement.querySelector(`.symbol-content`);
-                
                 // Apply custom image
                 symbolContent.style.backgroundImage = `url('${customSymbols[symbolType]}')`;
                 symbolContent.classList.add('custom');
+                
+                // Hide grape balls if this is a grape symbol
+                if (symbolType === 'grape') {
+                    const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
+                    grapeBalls.forEach(ball => {
+                        ball.style.display = 'none';
+                    });
+                }
             }
         });
     });
@@ -1189,14 +1240,14 @@ function createSymbolElement(symbol) {
     if (customSymbols[symbol.name]) {
         symbolContent.style.backgroundImage = `url('${customSymbols[symbol.name]}')`;
         symbolContent.classList.add('custom');
-    } else {
-        // For grape, add inner elements if not using custom image
-        if (symbol.name === 'grape') {
-            for (let k = 0; k < 6; k++) {
-                const grapeBall = document.createElement('div');
-                grapeBall.className = 'grape-ball';
-                symbolContent.appendChild(grapeBall);
-            }
+    } 
+    
+    // For grape, add inner elements (will be hidden by CSS if custom image is used)
+    if (symbol.name === 'grape') {
+        for (let k = 0; k < 6; k++) {
+            const grapeBall = document.createElement('div');
+            grapeBall.className = 'grape-ball';
+            symbolContent.appendChild(grapeBall);
         }
     }
     
