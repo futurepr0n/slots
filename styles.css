@@ -835,3 +835,124 @@ body {
     font-size: 14px;
     color: white;
 }
+
+
+/* Symbol Customizer Modal Styles */
+#symbol-customizer-modal .modal-content {
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.symbol-grid {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.symbol-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f70;
+}
+
+.symbol-preview {
+    width: 80px;
+    height: 80px;
+    background: #300;
+    border: 2px solid #f70;
+    border-radius: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 15px;
+    overflow: hidden;
+}
+
+.symbol-preview .symbol-content {
+    width: 60px;
+    height: 60px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.symbol-name {
+    flex: 1;
+    font-weight: bold;
+    color: #fc0;
+    font-size: 18px;
+}
+
+.symbol-upload {
+    display: flex;
+    gap: 10px;
+}
+
+.upload-btn, .reset-btn {
+    background: #500;
+    color: white;
+    border: 2px solid #fc0;
+    border-radius: 5px;
+    padding: 8px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-btn:hover, .reset-btn:hover {
+    background: #700;
+}
+
+.symbol-file {
+    position: absolute;
+    opacity: 0;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+#save-symbols-btn, #close-customizer-btn {
+    background: #500;
+    color: white;
+    border: 2px solid #fc0;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#save-symbols-btn:hover, #close-customizer-btn:hover {
+    background: #700;
+}
+
+/* Custom symbol styles for uploaded images */
+.symbol-content.custom {
+    background-color: transparent !important;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Remove default symbol styling when custom image is used */
+.symbol-content.custom::before,
+.symbol-content.custom::after {
+    display: none !important;
+}
+
+.grape.custom .grape-ball {
+    display: none !important;
+}

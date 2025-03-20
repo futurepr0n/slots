@@ -35,6 +35,12 @@ let leaderboard = {
     mostWon: 0
 };
 
+
+let customSymbols = {
+    // Will store the custom image data URLs
+    // Format: { symbolName: dataURL }
+};
+
 // Minimum and maximum stake
 const MIN_STAKE = 0.25;
 const MAX_STAKE = 10;
@@ -253,6 +259,8 @@ function initGame() {
     // Update displays
     updateCredits();
     updateStakeDisplay();
+
+    initSymbolCustomizer();
     
     // Update clock
     updateClock();
@@ -1022,6 +1030,184 @@ function createWinParticles() {
         }, 2000);
     }
 }
+
+
+// Initialize symbol customizer
+function initSymbolCustomizer() {
+    // Get the customizer button (first button)
+    const customizerBtn = document.querySelector('#controls .btn:first-child');
+    
+    // Add event listener to open customizer
+    customizerBtn.addEventListener('click', showSymbolCustomizer);
+    
+    // Add event listeners for the symbol customizer modal
+    document.getElementById('close-customizer-btn').addEventListener('click', hideSymbolCustomizer);
+    document.getElementById('save-symbols-btn').addEventListener('click', saveCustomSymbols);
+    
+    // Add event listeners for file inputs
+    document.querySelectorAll('.symbol-file').forEach(input => {
+        input.addEventListener('change', handleSymbolUpload);
+    });
+    
+    // Add event listeners for reset buttons
+    document.querySelectorAll('.reset-btn').forEach(button => {
+        button.addEventListener('click', resetSymbol);
+    });
+    
+    // Load any previously saved custom symbols
+    loadCustomSymbols();
+}
+
+// Show symbol customizer modal
+function showSymbolCustomizer() {
+    if (isSpinning) return; // Don't show if reels are spinning
+    
+    document.getElementById('symbol-customizer-modal').style.display = 'flex';
+}
+
+// Hide symbol customizer modal
+function hideSymbolCustomizer() {
+    document.getElementById('symbol-customizer-modal').style.display = 'none';
+}
+
+// Handle symbol image upload
+function handleSymbolUpload(event) {
+    const file = event.target.files[0];
+    const symbolType = event.target.dataset.symbol;
+    
+    if (!file) return;
+    
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+    }
+    
+    // Create a FileReader to read the image
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const dataURL = e.target.result;
+        
+        // Store the custom symbol
+        customSymbols[symbolType] = dataURL;
+        
+        // Update the preview
+        const previewElement = event.target.closest('.symbol-row').querySelector('.symbol-content');
+        previewElement.style.backgroundImage = `url('${dataURL}')`;
+        previewElement.classList.add('custom');
+        
+        // Save to localStorage
+        localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+// Reset a symbol to default
+function resetSymbol(event) {
+    const symbolType = event.target.dataset.symbol;
+    
+    // Remove the custom symbol
+    delete customSymbols[symbolType];
+    
+    // Update the preview
+    const previewElement = event.target.closest('.symbol-row').querySelector('.symbol-content');
+    previewElement.style.backgroundImage = '';
+    previewElement.classList.remove('custom');
+    
+    // Save to localStorage
+    localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
+}
+
+// Save custom symbols and close the modal
+function saveCustomSymbols() {
+    // Save to localStorage
+    localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
+    
+    // Apply custom symbols to the game
+    applyCustomSymbols();
+    
+    // Hide the modal
+    hideSymbolCustomizer();
+}
+
+// Load custom symbols from localStorage
+function loadCustomSymbols() {
+    const savedSymbols = localStorage.getItem('slotMachineCustomSymbols');
+    
+    if (savedSymbols) {
+        customSymbols = JSON.parse(savedSymbols);
+        
+        // Update the previews in the customizer
+        for (const symbolType in customSymbols) {
+            const dataURL = customSymbols[symbolType];
+            const previewElement = document.querySelector(`.symbol-file[data-symbol="${symbolType}"]`)
+                                         .closest('.symbol-row')
+                                         .querySelector('.symbol-content');
+            
+            previewElement.style.backgroundImage = `url('${dataURL}')`;
+            previewElement.classList.add('custom');
+        }
+        
+        // Apply custom symbols to the game
+        applyCustomSymbols();
+    }
+}
+
+// Apply custom symbols to the game
+function applyCustomSymbols() {
+    // For each reel
+    reels.forEach(reel => {
+        // For each symbol in the reel
+        reel.symbols.forEach(symbolData => {
+            const symbolType = symbolData.type;
+            
+            // If this symbol has a custom image
+            if (customSymbols[symbolType]) {
+                const symbolElement = symbolData.element;
+                const symbolContent = symbolElement.querySelector(`.symbol-content`);
+                
+                // Apply custom image
+                symbolContent.style.backgroundImage = `url('${customSymbols[symbolType]}')`;
+                symbolContent.classList.add('custom');
+            }
+        });
+    });
+}
+
+// Update the createSymbolElement function to handle custom symbols
+function createSymbolElement(symbol) {
+    // Create symbol element
+    const symbolElement = document.createElement('div');
+    symbolElement.className = 'symbol';
+    
+    const symbolContent = document.createElement('div');
+    symbolContent.className = `symbol-content ${symbol.cssClass}`;
+    
+    // Check if this symbol type has a custom image
+    if (customSymbols[symbol.name]) {
+        symbolContent.style.backgroundImage = `url('${customSymbols[symbol.name]}')`;
+        symbolContent.classList.add('custom');
+    } else {
+        // For grape, add inner elements if not using custom image
+        if (symbol.name === 'grape') {
+            for (let k = 0; k < 6; k++) {
+                const grapeBall = document.createElement('div');
+                grapeBall.className = 'grape-ball';
+                symbolContent.appendChild(grapeBall);
+            }
+        }
+    }
+    
+    symbolElement.appendChild(symbolContent);
+    return {
+        element: symbolElement,
+        type: symbol.name,
+        value: symbol.value
+    };
+}
+
 
 // Initialize game on load
 window.addEventListener('load', initGame);

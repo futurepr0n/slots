@@ -196,5 +196,129 @@
     </div>
 
     <script src="script.js"></script>
+    <!-- Symbol Customizer Modal -->
+<div id="symbol-customizer-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>CUSTOMIZE SYMBOLS</h2>
+        </div>
+        <div class="modal-body">
+            <p>Upload your own images to replace the default symbols!</p>
+            
+            <div class="symbol-grid">
+                <!-- Symbol customization rows -->
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content star"></div>
+                    </div>
+                    <div class="symbol-name">Star (Jackpot)</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="star" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="star">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content bell"></div>
+                    </div>
+                    <div class="symbol-name">Bell</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="bell" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="bell">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content watermelon"></div>
+                    </div>
+                    <div class="symbol-name">Watermelon</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="watermelon" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="watermelon">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content grape">
+                            <div class="grape-ball"></div>
+                            <div class="grape-ball"></div>
+                            <div class="grape-ball"></div>
+                            <div class="grape-ball"></div>
+                            <div class="grape-ball"></div>
+                            <div class="grape-ball"></div>
+                        </div>
+                    </div>
+                    <div class="symbol-name">Grape</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="grape" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="grape">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content cherry"></div>
+                    </div>
+                    <div class="symbol-name">Cherry</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="cherry" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="cherry">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content plum"></div>
+                    </div>
+                    <div class="symbol-name">Plum</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="plum" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="plum">RESET</button>
+                    </div>
+                </div>
+                
+                <div class="symbol-row">
+                    <div class="symbol-preview">
+                        <div class="symbol-content lemon"></div>
+                    </div>
+                    <div class="symbol-name">Lemon</div>
+                    <div class="symbol-upload">
+                        <label class="upload-btn">
+                            UPLOAD
+                            <input type="file" class="symbol-file" data-symbol="lemon" accept="image/*">
+                        </label>
+                        <button class="reset-btn" data-symbol="lemon">RESET</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="save-symbols-btn">SAVE & CLOSE</button>
+                <button id="close-customizer-btn">CANCEL</button>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
