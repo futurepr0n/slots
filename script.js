@@ -71,8 +71,9 @@ const userAPI = {
         
         // Make actual server request to save data
         fetch(saveUrl)
-            .then(response => {
-                console.log('User data saved to server');
+            .then(response => response.json())
+            .then(result => {
+                console.log('User data saved to server:', result);
             })
             .catch(error => {
                 console.error('Error saving user data to server:', error);
@@ -210,7 +211,7 @@ const jackpotAPI = {
                     resolve(data);
                 })
                 .catch(error => {
-                    console.warn('Could not load from server, using localStorage fallback');
+                    console.warn('Could not load from server, using localStorage fallback', error);
                     // Fallback to localStorage if server loading fails
                     const localData = localStorage.getItem('slotMachineJackpot');
                     if (localData) {
@@ -286,6 +287,7 @@ function handleLogin() {
     }
 }
 
+
 // Update user display
 function updateUserDisplay() {
     // Update current player
@@ -321,19 +323,31 @@ function updateClock() {
 // Load jackpot from storage
 async function loadJackpotFromStorage() {
     try {
+        console.log('Loading jackpot data from storage...');
         // Try to load from jackpot API
         const jackpotData = await jackpotAPI.loadJackpotData();
         
-        if (jackpotData) {
-            // Load jackpot values
-            jackpotRoyale = jackpotData.jackpotRoyale || 10000.00;
-            lastJackpotWon = jackpotData.lastJackpotWon || 0.00;
-            lastJackpotDate = jackpotData.lastJackpotDate || "";
+        if (jackpotData && typeof jackpotData === 'object') {
+            console.log('Jackpot data loaded successfully:', jackpotData);
+            
+            // Load jackpot values with validation
+            jackpotRoyale = typeof jackpotData.jackpotRoyale === 'number' && !isNaN(jackpotData.jackpotRoyale) 
+                ? jackpotData.jackpotRoyale 
+                : 10000.00;
+                
+            lastJackpotWon = typeof jackpotData.lastJackpotWon === 'number' && !isNaN(jackpotData.lastJackpotWon)
+                ? jackpotData.lastJackpotWon 
+                : 0.00;
+                
+            lastJackpotDate = typeof jackpotData.lastJackpotDate === 'string'
+                ? jackpotData.lastJackpotDate 
+                : "";
             
             // Update displays
             updateJackpotDisplays();
         } else {
-            // If no saved data, set defaults
+            console.warn('Invalid jackpot data received:', jackpotData);
+            // If no saved data or invalid data, set defaults
             resetJackpotDefaults();
         }
     } catch (e) {
@@ -840,20 +854,47 @@ function checkWins() {
         document.querySelector('.win-animation').classList.add('active');
         if (jackpotWin) {
             // Update user stats for jackpot win
-            currentUser.totalWon += jackpotRoyale;
+            const jackpotAmount = jackpotRoyale;
+            
+            // Update user stats
+            currentUser.totalWon += jackpotAmount;
+            currentUser.bankroll += jackpotAmount; // Add to bankroll
+            
+            // Save user data
             userAPI.saveUserData(currentUser);
             updateUserDisplay();
             
+            // Handle jackpot win (will add to credits)
             handleJackpotWin();
         } else {
+            // For regular wins, take money from the jackpot
+            // Cap the win amount to not exceed the jackpot
+            const actualWinAmount = Math.min(winAmount, jackpotRoyale);
+            
+            // Deduct from jackpot
+            jackpotRoyale -= actualWinAmount;
+            jackpotRoyale = Math.max(0, jackpotRoyale); // Ensure jackpot doesn't go negative
+            
+            // Round to 2 decimal places
+            jackpotRoyale = Math.round(jackpotRoyale * 100) / 100;
+            
             // Update user stats for regular win
-            currentUser.totalWon += winAmount;
+            currentUser.totalWon += actualWinAmount;
+            currentUser.bankroll += actualWinAmount; // Add to bankroll
+            
+            // Save updated data
             userAPI.saveUserData(currentUser);
             updateUserDisplay();
             
-            credits += winAmount;
+            // Add to credits
+            credits += actualWinAmount;
             updateCredits();
-            showMessage(`WIN ${winAmount.toFixed(2)}!`);
+            
+            // Update jackpot display
+            updateJackpotDisplays();
+            saveJackpotToStorage();
+            
+            showMessage(`WIN $${actualWinAmount.toFixed(2)}!`);
         }
         if (winAmount >= 10 || jackpotWin) {
             createWinParticles();
