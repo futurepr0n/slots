@@ -11,7 +11,7 @@ function checkForJackpot(visibleSymbols) {
 }
 
 // Game variables
-let credits = 100;
+let credits = 100; // Starting credit - always $100 when joining
 let stake = 1;
 let isSpinning = false;
 let reels = [];
@@ -25,9 +25,11 @@ let lastJackpotDate = "";     // Date of last jackpot win
 // User data variables
 let currentUser = {
     username: "Guest",
-    totalWon: 0,
-    totalWagered: 0
+    totalWon: 0,      // Total amount won (for leaderboard)
+    totalWagered: 0,  // Total amount wagered
+    bankroll: 0       // Net total (wins - losses)
 };
+
 let leaderboard = {
     topWinner: "",
     mostWon: 0
@@ -44,7 +46,7 @@ const SYMBOLS_PER_REEL = 20; // Total symbols to create per reel
 const VISIBLE_SYMBOLS = 3;   // Number of symbols visible in the window
 
 // Amount to add to jackpot on each spin (as percentage of stake)
-const JACKPOT_INCREMENT_PERCENT = 100; // Changed from 5% to 100% - entire stake goes to jackpot on losses
+const JACKPOT_INCREMENT_PERCENT = 100; // Full stake goes to jackpot on losses
 
 // Animation variables
 let animationFrames = [];
@@ -128,14 +130,16 @@ const userAPI = {
                 currentUser = {
                     username: username,
                     totalWon: data.users[username].totalWon || 0,
-                    totalWagered: data.users[username].totalWagered || 0
+                    totalWagered: data.users[username].totalWagered || 0,
+                    bankroll: data.users[username].bankroll || 0 // Load bankroll
                 };
             } else {
                 // Create new user
                 currentUser = {
                     username: username,
                     totalWon: 0,
-                    totalWagered: 0
+                    totalWagered: 0,
+                    bankroll: 0 // Initialize bankroll at 0
                 };
             }
             
@@ -145,8 +149,12 @@ const userAPI = {
             // Save user login
             this.saveUserData(currentUser);
             
+            // ALWAYS reset credits to $100 for a new session
+            credits = 100;
+            
             // Update display
             updateUserDisplay();
+            updateCredits();
             
             return currentUser;
         });
@@ -155,33 +163,44 @@ const userAPI = {
 
 // Server API for jackpot data - uses fetch to communicate with server
 const jackpotAPI = {
-    // Filename for jackpot data
-    jackpotFile: 'jackpot-data.json',
+    // Lock mechanism to prevent multiple updates
+    lockPending: false,
     
     saveJackpotData: function(data) {
+        // Prevent multiple simultaneous updates
+        if (this.lockPending) {
+            console.log('Update already in progress, will retry');
+            setTimeout(() => this.saveJackpotData(data), 500);
+            return;
+        }
+        
+        this.lockPending = true;
+        
         // Create a server endpoint URL for saving jackpot data
-        const saveUrl = `/save-jackpot?file=${this.jackpotFile}&data=${encodeURIComponent(JSON.stringify(data))}`;
+        const saveUrl = `/save-jackpot?data=${encodeURIComponent(JSON.stringify(data))}`;
         
         // Make actual server request to save data
         fetch(saveUrl)
-            .then(response => {
-                console.log('Jackpot data saved to server');
+            .then(response => response.json())
+            .then(result => {
+                console.log('Jackpot data saved to server:', result);
+                this.lockPending = false;
             })
             .catch(error => {
                 console.error('Error saving jackpot data to server:', error);
+                this.lockPending = false;
                 // Fallback to localStorage if server saving fails
                 localStorage.setItem('slotMachineJackpot', JSON.stringify(data));
             });
             
         // Also save to localStorage as a backup
         localStorage.setItem('slotMachineJackpot', JSON.stringify(data));
-        console.log('Jackpot data saved:', data);
     },
     
     loadJackpotData: function() {
         return new Promise((resolve, reject) => {
             // Create a server endpoint URL for loading jackpot data
-            const loadUrl = `/load-jackpot?file=${this.jackpotFile}`;
+            const loadUrl = `/load-jackpot`;
             
             // Try to load from server first
             fetch(loadUrl)
@@ -197,8 +216,13 @@ const jackpotAPI = {
                     if (localData) {
                         resolve(JSON.parse(localData));
                     } else {
-                        // No data found, return null
-                        resolve(null);
+                        // No data found, return default values
+                        resolve({
+                            jackpotRoyale: 10000.00,
+                            lastJackpotWon: 0.00,
+                            lastJackpotDate: "",
+                            lastUpdated: new Date().toISOString()
+                        });
                     }
                 });
         });
@@ -228,20 +252,16 @@ function initGame() {
     // Update displays
     updateCredits();
     updateStakeDisplay();
-    updateJackpotDisplays();
     
     // Update clock
     updateClock();
     setInterval(updateClock, 60000);
     
-    // Load jackpot data from local storage
+    // Load jackpot data
     loadJackpotFromStorage();
     
-    // Load user data
-    userAPI.loadUsersData().then(data => {
-        leaderboard = data.leaderboard;
-        updateUserDisplay();
-    });
+    // Show login modal immediately
+    document.getElementById('login-modal').style.display = 'flex';
     
     // Start jackpot growth timer (small automatic growth over time)
     setInterval(growJackpot, 5000);
@@ -543,8 +563,6 @@ function updateVisibleSymbols(reel) {
     const adjustedPosition = Math.round(topPosition / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
     const topIndex = (adjustedPosition / SYMBOL_HEIGHT) % SYMBOLS_PER_REEL;
     
-    console.log(`Reel position: ${topPosition}, Adjusted: ${adjustedPosition}, Top index: ${topIndex}`);
-    
     reel.visibleSymbols = [];
     
     // Get the three visible symbols
@@ -599,6 +617,7 @@ function spin() {
     
     // Track wagered amount for current user
     currentUser.totalWagered += stake;
+    currentUser.bankroll -= stake; // Deduct from bankroll
     userAPI.saveUserData(currentUser);
     updateUserDisplay();
     
@@ -657,8 +676,6 @@ function spin() {
         
         // Store the target stop position
         reel.stopPosition = targetTop;
-        
-        console.log(`Reel ${index+1} stop index: ${stopIndex}, Target position: ${targetTop}`);
         
         // Schedule when to start stopping this reel (staggered stops)
         setTimeout(() => {
@@ -754,12 +771,6 @@ function checkWins() {
     
     // Get visible symbols from each reel
     const visibleSymbols = reels.map(reel => reel.visibleSymbols);
-    
-    // Debug: log the visible symbols
-    console.log("Visible symbols for win checking:");
-    visibleSymbols.forEach((reelSymbols, i) => {
-        console.log(`Reel ${i+1}:`, reelSymbols.map(s => s.type));
-    });
     
     // Check each row for wins
     winAmount = 0;

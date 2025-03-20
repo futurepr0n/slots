@@ -4,11 +4,17 @@
       "totalWon": 0,
       "totalWagered": 4,
       "lastPlayed": "2025-03-20T04:14:41.372Z"
+    },
+    "Mark": {
+      "totalWon": 5,
+      "totalWagered": 3,
+      "bankroll": -3,
+      "lastPlayed": "2025-03-20T18:21:30.705Z"
     }
   },
   "leaderboard": {
-    "topWinner": "",
-    "mostWon": 0
+    "topWinner": "Mark",
+    "mostWon": 5
   },
-  "lastUpdated": "2025-03-20T04:14:41.372Z"
+  "lastUpdated": "2025-03-20T18:21:30.705Z"
 }
