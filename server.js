@@ -364,6 +364,23 @@ if (pathname === '/load-jackpot') {
                     [userId]
                 );
                 
+                const userData = {
+                    id: updatedUser[0].id,
+                    username: updatedUser[0].username,
+                    totalWon: parseFloat(updatedUser[0].total_won),
+                    totalWagered: parseFloat(updatedUser[0].total_wagered),
+                    bankroll: parseFloat(updatedUser[0].bankroll),
+                    customSymbols: customSymbolsObj,
+                    uniqueIdentifier: uniqueIdentifier
+                };
+                
+                userData.totalWon = Math.round(userData.totalWon * 100) / 100;
+                userData.totalWagered = Math.round(userData.totalWagered * 100) / 100;
+                userData.bankroll = Math.round(userData.bankroll * 100) / 100;
+
+                console.log(`Server returning user data - totalWon: ${userData.totalWon.toFixed(2)}, totalWagered: ${userData.totalWagered.toFixed(2)}`);
+
+
                 // Check if this user has custom symbols
                 const [customSymbols] = await connection.query(
                     'SELECT symbol_name, image_data FROM custom_symbols WHERE user_id = ?',
@@ -389,15 +406,7 @@ if (pathname === '/load-jackpot') {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ 
                     success: true,
-                    data: {
-                        id: updatedUser[0].id,
-                        username: updatedUser[0].username,
-                        totalWon: updatedUser[0].total_won,
-                        totalWagered: updatedUser[0].total_wagered,
-                        bankroll: updatedUser[0].bankroll,
-                        customSymbols: customSymbolsObj,
-                        uniqueIdentifier: uniqueIdentifier
-                    },
+                    data: userData,
                     leaderboard: leaderboard
                 }));
             } finally {

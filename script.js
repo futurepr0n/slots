@@ -174,16 +174,25 @@ const userAPI = {
         return this.loadUsersData().then(data => {
             // If user exists, load their data
             if (data.users[username]) {
+                const userData = data.users[username];
+                
+                // Round values immediately when loading from server
+                const totalWon = userData.totalWon ? Math.round(userData.totalWon * 100) / 100 : 0;
+                const totalWagered = userData.totalWagered ? Math.round(userData.totalWagered * 100) / 100 : 0;
+                const bankroll = userData.bankroll ? Math.round(userData.bankroll * 100) / 100 : 0;
+                
+                console.log(`Loading user data - totalWon: ${totalWon.toFixed(2)}, totalWagered: ${totalWagered.toFixed(2)}`);
+                
                 currentUser = {
                     username: username,
-                    totalWon: data.users[username].totalWon || 0,
-                    totalWagered: data.users[username].totalWagered || 0,
-                    bankroll: data.users[username].bankroll || 0 // Load bankroll
+                    totalWon: totalWon,
+                    totalWagered: totalWagered,
+                    bankroll: bankroll
                 };
                 
                 // Set user ID if available
-                if (data.users[username].id) {
-                    this.userId = data.users[username].id;
+                if (userData.id) {
+                    this.userId = userData.id;
                 }
             } else {
                 // Create new user
@@ -203,6 +212,19 @@ const userAPI = {
                 if (result.success) {
                     // ALWAYS reset credits to $100 for a new session
                     credits = 100;
+                    
+                    // Ensure the values from the server are properly rounded
+                    if (result.data) {
+                        if (typeof result.data.totalWon === 'number') {
+                            currentUser.totalWon = Math.round(result.data.totalWon * 100) / 100;
+                        }
+                        if (typeof result.data.totalWagered === 'number') {
+                            currentUser.totalWagered = Math.round(result.data.totalWagered * 100) / 100;
+                        }
+                        if (typeof result.data.bankroll === 'number') {
+                            currentUser.bankroll = Math.round(result.data.bankroll * 100) / 100;
+                        }
+                    }
                     
                     // Update display
                     updateUserDisplay();
@@ -1070,9 +1092,15 @@ function checkWins() {
             // Update user stats for jackpot win
             const jackpotAmount = jackpotRoyale;
             
-            // Update user stats
-            currentUser.totalWon += jackpotAmount;
-            currentUser.bankroll += jackpotAmount; // Add to bankroll
+            console.log(`Win: Adding ${actualWinAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
+            currentUser.totalWon += actualWinAmount;
+            // Ensure proper rounding to exactly 2 decimal places
+            currentUser.totalWon = Math.round(currentUser.totalWon * 100) / 100;
+            console.log(`Total won after update: ${currentUser.totalWon.toFixed(2)}`);
+
+            currentUser.bankroll += actualWinAmount; // Add to bankroll
+            // Ensure proper rounding for bankroll too
+            currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
             
             // Save user data
             userAPI.saveUserData(currentUser);
