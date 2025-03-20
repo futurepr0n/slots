@@ -91,173 +91,206 @@ const server = http.createServer(async (req, res) => {
     }
     
     // Handle API endpoints
-    if (pathname === '/save-jackpot') {
-        try {
-            const data = parsedUrl.query.data;
-            if (!data) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'No data provided' }));
-                return;
-            }
-    
-            // Parse the data
-            const jackpotData = JSON.parse(decodeURIComponent(data));
-            
-            // Validate jackpot data
-            if (typeof jackpotData.jackpotRoyale !== 'number' || 
-                isNaN(jackpotData.jackpotRoyale) || 
-                jackpotData.jackpotRoyale < 0) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid jackpot data' }));
-                return;
-            }
-            
-            // Ensure minimum jackpot value is 10000, not 1000 (which might be causing the reset)
-            if (jackpotData.jackpotRoyale < 10000) {
-                jackpotData.jackpotRoyale = 10000.00;
-            }
-            
-            // Round to 2 decimal places for consistency
-            const jackpotAmount = Math.round(jackpotData.jackpotRoyale * 100) / 100;
-            
-            // Update jackpot in database
-            let lastJackpotAmount = null;
-            let lastJackpotDate = null;
-            
-            // If a jackpot was won, update the last jackpot fields
-            if (jackpotData.lastJackpotWon > 0) {
-                lastJackpotAmount = jackpotData.lastJackpotWon;
-                lastJackpotDate = jackpotData.lastJackpotDate 
-                    ? new Date(jackpotData.lastJackpotDate) 
-                    : new Date();
-            }
-            
-            // Update the jackpot in the database
-            const connection = await pool.getConnection();
-            try {
-                // First check if the jackpot record exists
-                const [rows] = await connection.query(
-                    'SELECT * FROM jackpots WHERE jackpot_name = ?', 
-                    ['main']
-                );
-                
-                if (rows.length > 0) {
-                    // Only update last_jackpot fields if they are provided
-                    const updateQuery = `
-                        UPDATE jackpots 
-                        SET jackpot_amount = ?,
-                            last_jackpot_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_amount END,
-                            last_jackpot_date = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_date END
-                        WHERE jackpot_name = ?
-                    `;
-                    await connection.query(updateQuery, [
-                        jackpotAmount, 
-                        lastJackpotAmount, lastJackpotAmount, 
-                        lastJackpotDate, lastJackpotDate, 
-                        'main'
-                    ]);
-                } else {
-                    // Insert new record
-                    const insertQuery = `
-                        INSERT INTO jackpots 
-                        (jackpot_name, jackpot_amount, last_jackpot_amount, last_jackpot_date) 
-                        VALUES (?, ?, ?, ?)
-                    `;
-                    await connection.query(insertQuery, [
-                        'main', 
-                        jackpotAmount, 
-                        lastJackpotAmount, 
-                        lastJackpotDate
-                    ]);
-                }
-                
-                // Get the updated jackpot data
-                const [updated] = await connection.query(
-                    'SELECT * FROM jackpots WHERE jackpot_name = ?', 
-                    ['main']
-                );
-                
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    success: true,
-                    data: {
-                        jackpotRoyale: updated[0].jackpot_amount,
-                        lastJackpotWon: updated[0].last_jackpot_amount || 0,
-                        lastJackpotDate: updated[0].last_jackpot_date 
-                            ? updated[0].last_jackpot_date.toISOString().split('T')[0].replace(/-/g, '/') 
-                            : "",
-                        lastUpdated: updated[0].last_updated
-                    }
-                }));
-            } finally {
-                connection.release();
-            }
-        } catch (error) {
-            console.error('Error saving jackpot data:', error);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to save jackpot data' }));
+    // In server.js - modified /save-jackpot endpoint
+if (pathname === '/save-jackpot') {
+    try {
+        const data = parsedUrl.query.data;
+        if (!data) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No data provided' }));
+            return;
         }
-        return;
-    }
-    
-    if (pathname === '/load-jackpot') {
+
+        // Parse the data
+        const jackpotData = JSON.parse(decodeURIComponent(data));
+        
+        console.log('Received jackpot update request:', jackpotData);
+        
+        // Validate jackpot data
+        if (typeof jackpotData.jackpotRoyale !== 'number' || 
+            isNaN(jackpotData.jackpotRoyale) || 
+            jackpotData.jackpotRoyale < 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid jackpot data' }));
+            return;
+        }
+        
+        // Round to 2 decimal places for consistency
+        const jackpotAmount = Math.round(jackpotData.jackpotRoyale * 100) / 100;
+        
+        console.log('Processing jackpot amount:', jackpotAmount);
+        
+        // Don't reset to 10000 if it's below that - only if it's 0 or negative
+        if (jackpotAmount <= 0) {
+            console.log('Jackpot reset due to invalid amount:', jackpotAmount);
+            jackpotAmount = 10000.00;
+        }
+        
+        // Update jackpot in database
+        let lastJackpotAmount = null;
+        let lastJackpotDate = null;
+        
+        // If a jackpot was won, update the last jackpot fields
+        if (jackpotData.lastJackpotWon > 0) {
+            lastJackpotAmount = jackpotData.lastJackpotWon;
+            lastJackpotDate = jackpotData.lastJackpotDate 
+                ? new Date(jackpotData.lastJackpotDate) 
+                : new Date();
+        }
+        
+        // Update the jackpot in the database
+        const connection = await pool.getConnection();
         try {
-            const connection = await pool.getConnection();
-            try {
-                // Get jackpot data from database
-                const [rows] = await connection.query(
-                    'SELECT * FROM jackpots WHERE jackpot_name = ?', 
-                    ['main']
-                );
-                
-                if (rows.length > 0) {
-                    const jackpotData = {
-                        jackpotRoyale: rows[0].jackpot_amount,
-                        lastJackpotWon: rows[0].last_jackpot_amount || 0,
-                        lastJackpotDate: rows[0].last_jackpot_date 
-                            ? rows[0].last_jackpot_date.toISOString().split('T')[0].replace(/-/g, '/') 
-                            : "",
-                        lastUpdated: rows[0].last_updated
-                    };
-                    
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(jackpotData));
-                } else {
-                    // Insert default jackpot data if none exists
-                    await connection.query(
-                        'INSERT INTO jackpots (jackpot_name, jackpot_amount) VALUES (?, ?)',
-                        ['main', 10000.00]
-                    );
-                    
-                    const defaultData = {
-                        jackpotRoyale: 10000.00,
-                        lastJackpotWon: 0,
-                        lastJackpotDate: "",
-                        lastUpdated: new Date().toISOString()
-                    };
-                    
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify(defaultData));
-                }
-            } finally {
-                connection.release();
-            }
-        } catch (error) {
-            console.error('Error loading jackpot data:', error);
+            // First check if the jackpot record exists
+            const [rows] = await connection.query(
+                'SELECT * FROM jackpots WHERE jackpot_name = ?', 
+                ['main']
+            );
             
-            // Return default data in case of error
-            const defaultData = {
-                jackpotRoyale: 10000.00,
-                lastJackpotWon: 0,
-                lastJackpotDate: "",
-                lastUpdated: new Date().toISOString()
-            };
+            console.log('Current jackpot in database:', rows.length ? rows[0].jackpot_amount : 'Not found');
+            
+            if (rows.length > 0) {
+                // Update existing record
+                const updateQuery = `
+                    UPDATE jackpots 
+                    SET jackpot_amount = ?,
+                        last_jackpot_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_amount END,
+                        last_jackpot_date = CASE WHEN ? IS NOT NULL THEN ? ELSE last_jackpot_date END
+                    WHERE jackpot_name = ?
+                `;
+                await connection.query(updateQuery, [
+                    jackpotAmount, 
+                    lastJackpotAmount, lastJackpotAmount, 
+                    lastJackpotDate, lastJackpotDate, 
+                    'main'
+                ]);
+                
+                console.log('Updated jackpot record to:', jackpotAmount);
+            } else {
+                // Insert new record
+                const insertQuery = `
+                    INSERT INTO jackpots 
+                    (jackpot_name, jackpot_amount, last_jackpot_amount, last_jackpot_date) 
+                    VALUES (?, ?, ?, ?)
+                `;
+                await connection.query(insertQuery, [
+                    'main', 
+                    jackpotAmount, 
+                    lastJackpotAmount, 
+                    lastJackpotDate
+                ]);
+                
+                console.log('Created new jackpot record with amount:', jackpotAmount);
+            }
+            
+            // Get the updated jackpot data
+            const [updated] = await connection.query(
+                'SELECT * FROM jackpots WHERE jackpot_name = ?', 
+                ['main']
+            );
+            
+            console.log('Verified jackpot after update:', updated[0].jackpot_amount);
             
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(defaultData));
+            res.end(JSON.stringify({ 
+                success: true,
+                data: {
+                    jackpotRoyale: parseFloat(updated[0].jackpot_amount),
+                    lastJackpotWon: parseFloat(updated[0].last_jackpot_amount || 0),
+                    lastJackpotDate: updated[0].last_jackpot_date 
+                        ? updated[0].last_jackpot_date.toISOString().split('T')[0].replace(/-/g, '/') 
+                        : "",
+                    lastUpdated: updated[0].last_updated
+                }
+            }));
+        } finally {
+            connection.release();
         }
-        return;
+    } catch (error) {
+        console.error('Error saving jackpot data:', error);
+        console.error('Stack trace:', error.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to save jackpot data' }));
     }
+    return;
+}
+    
+    // In server.js - modified /load-jackpot endpoint
+if (pathname === '/load-jackpot') {
+    try {
+        const connection = await pool.getConnection();
+        try {
+            console.log('Loading jackpot data from database...');
+            
+            // Get jackpot data from database
+            const [rows] = await connection.query(
+                'SELECT * FROM jackpots WHERE jackpot_name = ?', 
+                ['main']
+            );
+            
+            if (rows.length > 0) {
+                console.log('Found jackpot in database:', rows[0].jackpot_amount);
+                
+                // Ensure we return numbers, not strings
+                const jackpotAmount = parseFloat(rows[0].jackpot_amount);
+                const lastJackpotAmount = rows[0].last_jackpot_amount ? parseFloat(rows[0].last_jackpot_amount) : 0;
+                
+                const jackpotData = {
+                    jackpotRoyale: jackpotAmount,
+                    lastJackpotWon: lastJackpotAmount,
+                    lastJackpotDate: rows[0].last_jackpot_date 
+                        ? rows[0].last_jackpot_date.toISOString().split('T')[0].replace(/-/g, '/') 
+                        : "",
+                    lastUpdated: rows[0].last_updated
+                };
+                
+                console.log('Returning jackpot data:', jackpotData);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(jackpotData));
+            } else {
+                console.log('No jackpot found in database, creating new record');
+                
+                // Insert default jackpot data if none exists
+                await connection.query(
+                    'INSERT INTO jackpots (jackpot_name, jackpot_amount) VALUES (?, ?)',
+                    ['main', 10000.00]
+                );
+                
+                const defaultData = {
+                    jackpotRoyale: 10000.00,
+                    lastJackpotWon: 0,
+                    lastJackpotDate: "",
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                console.log('Returning default jackpot data:', defaultData);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(defaultData));
+            }
+        } finally {
+            connection.release();
+        }
+    } catch (error) {
+        console.error('Error loading jackpot data:', error);
+        console.error('Stack trace:', error.stack);
+        
+        // Return default data in case of error
+        const defaultData = {
+            jackpotRoyale: 10000.00,
+            lastJackpotWon: 0,
+            lastJackpotDate: "",
+            lastUpdated: new Date().toISOString()
+        };
+        
+        console.log('Error occurred, returning default data:', defaultData);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(defaultData));
+    }
+    return;
+}
 
     // Save user data
     if (pathname === '/save-user') {
