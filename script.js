@@ -929,6 +929,11 @@ function resetReelPosition(reel) {
         
         // Restore transition
         reel.stripElement.style.transition = '';
+        
+        // Reapply custom symbols after position reset
+        if (Object.keys(customSymbols).length > 0) {
+            ensureCustomSymbolsApplied();
+        }
     }
 }
 
@@ -1019,6 +1024,11 @@ function spin() {
         setTimeout(() => {
             // Start slowing down
             reel.stopping = true;
+
+            if (Object.keys(customSymbols).length > 0) {
+                ensureCustomSymbolsApplied();
+            }
+
         }, 1000 + (index * 500)); // Staggered stops - 1s, 1.5s, 2s
     });
     
@@ -1089,10 +1099,20 @@ function animateReels() {
             allStopped = false;
         } else if (index === reels.length - 1 && allStopped) {
             // All reels stopped, check for wins after a short delay
-            setTimeout(checkWins, 300);
+            setTimeout(() => {
+                // Apply custom symbols before checking wins
+                ensureCustomSymbolsApplied();
+                checkWins();
+            }, 300);
             return;
         }
     });
+    
+    // Periodically ensure custom symbols are applied even during animation
+    // Use a timestamp-based approach to limit how often this runs
+    if (now % 200 < 20) { // Run roughly every 200ms
+        ensureCustomSymbolsApplied();
+    }
     
     // Continue animation if not all stopped
     if (!allStopped) {
@@ -1310,6 +1330,44 @@ function checkWins() {
         window.jackpotUpdateInProgress = false;
     });
 }
+
+
+function ensureCustomSymbolsApplied() {
+    // Only proceed if we have custom symbols defined
+    if (Object.keys(customSymbols).length === 0) return;
+    
+    // For each reel
+    reels.forEach(reel => {
+        // Process both main symbols and cloned symbols
+        const allSymbols = [...reel.symbols, ...(reel.clonedSymbols || [])];
+        
+        allSymbols.forEach(symbolData => {
+            if (!symbolData || !symbolData.element) return;
+            
+            const symbolType = symbolData.type;
+            const symbolElement = symbolData.element;
+            const symbolContent = symbolElement.querySelector(`.symbol-content`);
+            
+            if (!symbolContent) return;
+            
+            // If this symbol has a custom image, ensure it's applied
+            if (customSymbols[symbolType]) {
+                // Apply custom image
+                symbolContent.style.backgroundImage = `url('${customSymbols[symbolType]}')`;
+                symbolContent.classList.add('custom');
+                
+                // Hide grape balls if this is a grape symbol
+                if (symbolType === 'grape') {
+                    const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
+                    grapeBalls.forEach(ball => {
+                        ball.style.display = 'none';
+                    });
+                }
+            }
+        });
+    });
+}
+
 
 // Handle jackpot win
 function handleJackpotWin() {
