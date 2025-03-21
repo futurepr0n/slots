@@ -320,60 +320,66 @@ const userAPI = {
     
     // Save a custom symbol
     saveCustomSymbol: function(symbolName, imageData) {
-            // Only save if we have a user ID
-            if (!this.userId) {
-                return Promise.resolve(false);
-            }
-            
-            const symbolData = {
-                userId: this.userId,
-                symbolName: symbolName,
-                imageData: imageData
-            };
-            
-            // Save to localStorage as a backup immediately
-            try {
-                const storageKey = `symbol_${symbolName}`;
-                localStorage.setItem(storageKey, imageData);
-                console.log(`Backed up ${symbolName} to localStorage`);
-            } catch (storageError) {
-                console.warn('Failed to backup to localStorage:', storageError);
-            }
-            
-            // Define a function to attempt the save with retries
-            const attemptSave = (retryCount = 0) => {
-                return fetch(`/save-custom-symbol?data=${encodeURIComponent(JSON.stringify(symbolData))}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`Server error: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log(`Symbol ${symbolName} saved successfully to server`);
-                        return data.success || false;
-                    })
-                    .catch(error => {
-                        console.error(`Error saving custom symbol (attempt ${retryCount + 1}):`, error);
-                        
-                        // If we haven't tried too many times, retry
-                        if (retryCount < 2) {
-                            console.log(`Retrying symbol save (attempt ${retryCount + 1})...`);
-                            return new Promise(resolve => {
-                                // Wait a bit before retrying
-                                setTimeout(() => {
-                                    resolve(attemptSave(retryCount + 1));
-                                }, 1000); // 1 second delay
-                            });
-                        }
-                        
-                        // If all retries failed, we already saved to localStorage
-                        // so we can consider it a partial success
-                        return true;
+        // Only save if we have a user ID
+        if (!this.userId) {
+            return Promise.resolve(false);
+        }
+        
+        const symbolData = {
+            userId: this.userId,
+            symbolName: symbolName,
+            imageData: imageData
+        };
+        
+        // Save to localStorage as a backup immediately
+        try {
+            const storageKey = `symbol_${symbolName}`;
+            localStorage.setItem(storageKey, imageData);
+            console.log(`Backed up ${symbolName} to localStorage`);
+        } catch (storageError) {
+            console.warn('Failed to backup to localStorage:', storageError);
+        }
+        
+        // Define a function to attempt the save with retries
+        const attemptSave = (retryCount = 0) => {
+            return fetch('/save-custom-symbol', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(symbolData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Symbol ${symbolName} saved successfully to server`);
+                return data.success || false;
+            })
+            .catch(error => {
+                console.error(`Error saving custom symbol (attempt ${retryCount + 1}):`, error);
+                
+                // If we haven't tried too many times, retry
+                if (retryCount < 2) {
+                    console.log(`Retrying symbol save (attempt ${retryCount + 1})...`);
+                    return new Promise(resolve => {
+                        // Wait a bit before retrying
+                        setTimeout(() => {
+                            resolve(attemptSave(retryCount + 1));
+                        }, 1000); // 1 second delay
                     });
-            };
-            
-            return attemptSave();
+                }
+                
+                // If all retries failed, we already saved to localStorage
+                // so we can consider it a partial success
+                return true;
+            });
+        };
+        
+        return attemptSave();
     },
     
     // Delete a custom symbol

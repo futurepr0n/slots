@@ -650,19 +650,12 @@ const server = http.createServer(async (req, res) => {
     // Save custom symbol
     if (pathname === '/save-custom-symbol') {
         try {
-            const data = parsedUrl.query.data;
-            if (!data) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'No symbol data provided' }));
-                return;
-            }
-
-            // Parse the data
             let symbolData;
             try {
-                symbolData = JSON.parse(decodeURIComponent(data));
+                symbolData = JSON.parse(body);
+                console.log('Received symbol data via POST:', symbolData);
             } catch (parseError) {
-                console.error('Error parsing symbol data:', parseError);
+                console.error('Error parsing symbol data from POST:', parseError);
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON data format' }));
                 return;
