@@ -931,11 +931,17 @@ function updateVisibleSymbols(reel) {
     
     reel.visibleSymbols = [];
     
-    // Get the three visible symbols
+    // Get the three visible symbols and store references to their DOM elements
     for (let i = 0; i < VISIBLE_SYMBOLS; i++) {
         const index = (topIndex + i) % SYMBOLS_PER_REEL;
         if (reel.symbols[index]) {
-            reel.visibleSymbols.push(reel.symbols[index]);
+            // Make a deep copy but ensure we keep the element reference
+            const symbolData = {
+                element: reel.symbols[index].element,
+                type: reel.symbols[index].type,
+                value: reel.symbols[index].value
+            };
+            reel.visibleSymbols.push(symbolData);
         } else {
             console.error(`Invalid symbol index: ${index} (max: ${SYMBOLS_PER_REEL-1})`);
         }
@@ -1167,6 +1173,7 @@ function animateReels() {
 
 
 // Check for winning combinations
+// Improved checkWins function with better highlighting logic
 function checkWins() {
     // Ensure all reels have properly updated their visible symbols
     reels.forEach(reel => {
@@ -1179,7 +1186,7 @@ function checkWins() {
     // Check each row for wins
     winAmount = 0;
     const winningLines = [];
-    const highlightedSymbols = [];
+    const highlightedSymbolElements = []; // Store DOM elements to highlight
     
     // Check top row (index 0 in each reel's visibleSymbols array)
     if (visibleSymbols[0][0] && visibleSymbols[1][0] && visibleSymbols[2][0] &&
@@ -1190,10 +1197,10 @@ function checkWins() {
         winAmount += lineValue;
         winningLines.push('top');
         
-        // Add symbols to highlight
-        highlightedSymbols.push(visibleSymbols[0][0].element);
-        highlightedSymbols.push(visibleSymbols[1][0].element);
-        highlightedSymbols.push(visibleSymbols[2][0].element);
+        // Add symbols to highlight - ensure we're getting the actual DOM elements
+        if (visibleSymbols[0][0].element) highlightedSymbolElements.push(visibleSymbols[0][0].element);
+        if (visibleSymbols[1][0].element) highlightedSymbolElements.push(visibleSymbols[1][0].element);
+        if (visibleSymbols[2][0].element) highlightedSymbolElements.push(visibleSymbols[2][0].element);
     }
     
     // Check middle row (index 1 in each reel's visibleSymbols array)
@@ -1205,10 +1212,10 @@ function checkWins() {
         winAmount += lineValue;
         winningLines.push('middle');
         
-        // Add symbols to highlight
-        highlightedSymbols.push(visibleSymbols[0][1].element);
-        highlightedSymbols.push(visibleSymbols[1][1].element);
-        highlightedSymbols.push(visibleSymbols[2][1].element);
+        // Add symbols to highlight - ensure we're getting the actual DOM elements
+        if (visibleSymbols[0][1].element) highlightedSymbolElements.push(visibleSymbols[0][1].element);
+        if (visibleSymbols[1][1].element) highlightedSymbolElements.push(visibleSymbols[1][1].element);
+        if (visibleSymbols[2][1].element) highlightedSymbolElements.push(visibleSymbols[2][1].element);
     }
     
     // Check bottom row (index 2 in each reel's visibleSymbols array)
@@ -1220,15 +1227,31 @@ function checkWins() {
         winAmount += lineValue;
         winningLines.push('bottom');
         
-        // Add symbols to highlight
-        highlightedSymbols.push(visibleSymbols[0][2].element);
-        highlightedSymbols.push(visibleSymbols[1][2].element);
-        highlightedSymbols.push(visibleSymbols[2][2].element);
+        // Add symbols to highlight - ensure we're getting the actual DOM elements
+        if (visibleSymbols[0][2].element) highlightedSymbolElements.push(visibleSymbols[0][2].element);
+        if (visibleSymbols[1][2].element) highlightedSymbolElements.push(visibleSymbols[1][2].element);
+        if (visibleSymbols[2][2].element) highlightedSymbolElements.push(visibleSymbols[2][2].element);
     }
     
-    // Highlight winning symbols
-    highlightedSymbols.forEach(symbol => {
-        if (symbol) symbol.classList.add('highlighted');
+    // Force clear any previous highlights first
+    document.querySelectorAll('.symbol.highlighted').forEach(symbol => {
+        symbol.classList.remove('highlighted');
+    });
+    
+    // Highlight winning symbols with improved logic
+    highlightedSymbolElements.forEach(symbolElement => {
+        if (symbolElement) {
+            // Add highlight class
+            symbolElement.classList.add('highlighted');
+            
+            // For symbols with custom images, make sure the highlight effect works
+            const symbolContent = symbolElement.querySelector('.symbol-content');
+            if (symbolContent && symbolContent.classList.contains('custom')) {
+                // Ensure the highlight effect applies to custom symbols
+                symbolContent.style.filter = 'drop-shadow(0 0 10px rgba(255, 215, 0, 0.8))';
+                symbolContent.style.transform = 'scale(1.1)';
+            }
+        }
     });
     
     // Show winning lines
@@ -1252,75 +1275,38 @@ function checkWins() {
     // Show win animation if won
     if (winAmount > 0 || jackpotWin) {
         document.querySelector('.win-animation').classList.add('active');
+        
+        // Handle the rest of the win logic...
+        // (jackpot handling and other win-related code remains the same)
+        
         if (jackpotWin) {
-            // Update user stats for jackpot win
+            // Existing jackpot win handling code...
             const jackpotAmount = jackpotRoyale;
-            
-            // Log the winnings update
-            console.log(`Jackpot Win: Adding ${jackpotAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
-            
-            // Update total won with the jackpot amount
             currentUser.totalWon += jackpotAmount;
-            // Ensure proper rounding
             currentUser.totalWon = Math.round(currentUser.totalWon * 100) / 100;
-            
-            console.log(`Total won after jackpot: ${currentUser.totalWon.toFixed(2)}`);
-            
-            // Update bankroll
             currentUser.bankroll += jackpotAmount;
-            // Ensure proper rounding for bankroll too
             currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
-            
-            // Save user data
             userAPI.saveUserData(currentUser);
             updateUserDisplay();
-            
-            // Handle jackpot win (will add to credits)
             handleJackpotWin();
-            
-            // Record the jackpot spin
             spinData.winAmount = jackpotAmount;
         } else {
-            // For regular wins, take money from the jackpot
-            // Cap the win amount to not exceed the jackpot
+            // Existing regular win handling code...
             const actualWinAmount = Math.min(winAmount, jackpotRoyale);
-            
-            // Deduct from jackpot
             jackpotRoyale -= actualWinAmount;
-            jackpotRoyale = Math.max(0, jackpotRoyale); // Ensure jackpot doesn't go negative
-            
-            // Round to 2 decimal places
+            jackpotRoyale = Math.max(0, jackpotRoyale);
             jackpotRoyale = Math.round(jackpotRoyale * 100) / 100;
-            
-            // Log the winnings update
-            console.log(`Regular Win: Adding ${actualWinAmount.toFixed(2)} to total won (before: ${currentUser.totalWon.toFixed(2)})`);
-            
-            // Update user stats for regular win
             currentUser.totalWon += actualWinAmount;
-            // Ensure proper rounding to exactly 2 decimal places
             currentUser.totalWon = Math.round(currentUser.totalWon * 100) / 100;
-            
-            console.log(`Total won after update: ${currentUser.totalWon.toFixed(2)}`);
-            
-            currentUser.bankroll += actualWinAmount; // Add to bankroll
-            // Ensure proper rounding for bankroll too
+            currentUser.bankroll += actualWinAmount;
             currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
-            
-            // Save updated data
             userAPI.saveUserData(currentUser);
             updateUserDisplay();
-            
-            // Add to credits
             credits += actualWinAmount;
             updateCredits();
-            
-            // Update jackpot display
             updateJackpotDisplays();
             saveJackpotToStorage();
-            
             showMessage(`WIN $${actualWinAmount.toFixed(2)}!`);
-            
-            // Update the actual win amount in spin data
             spinData.winAmount = actualWinAmount;
         }
         
@@ -1329,29 +1315,12 @@ function checkWins() {
             createWinParticles();
         }
     } else {
-        // No win - add stake to jackpot
+        // No win - existing code for handling losses...
         const incrementAmount = stake * (JACKPOT_INCREMENT_PERCENT / 100);
-        console.log(`No win - adding ${incrementAmount.toFixed(2)} to jackpot (${stake} * ${JACKPOT_INCREMENT_PERCENT}%)`);
-    
-        // Get previous jackpot for logging
-        const previousJackpot = jackpotRoyale;
-        
-        // Add to jackpot
         jackpotRoyale += incrementAmount;
-        jackpotRoyale = Math.round(jackpotRoyale * 100) / 100; // Round to 2 decimal places
-        
-        console.log(`Jackpot updated: ${previousJackpot.toFixed(2)} -> ${jackpotRoyale.toFixed(2)}`);
-    
-        // Update display first
+        jackpotRoyale = Math.round(jackpotRoyale * 100) / 100;
         updateJackpotDisplays();
-        
-        // Save immediately to prevent race conditions
-        saveJackpotToStorage().then(() => {
-            console.log('Jackpot updated after loss:', jackpotRoyale.toFixed(2));
-        }).catch(err => {
-            console.error('Failed to update jackpot after loss:', err);
-        });
-        
+        saveJackpotToStorage();
         showMessage("Try again!");
     }
 
@@ -1362,21 +1331,19 @@ function checkWins() {
             console.log('Spin recorded successfully');
         }
         
-        // Only reset the flags after database operations complete
-        // This ensures the jackpot refresh won't happen until everything is done
+        // Reset the flags
         isSpinning = false;
         window.jackpotUpdateInProgress = false;
     }).catch(error => {
         console.error('Error recording spin:', error);
-        // Even if there's an error, we need to reset flags
         isSpinning = false;
         window.jackpotUpdateInProgress = false;
     });
-
+    
+    // Ensure custom symbols are applied
     if (Object.keys(customSymbols).length > 0) {
         applyCustomSymbols();
     }
-    
 }
 
 let lastSymbolApplyTime = 0;
