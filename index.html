@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cash Strike Slot Machine</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Custom symbol styling to make them more resilient */
+        .symbol-content.custom {
+            background-color: transparent !important;
+            background-size: contain !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+            transform: scale(1.0) !important;
+        }
+        
+        /* Make sure the custom styling takes precedence */
+        .symbol-content.custom::before,
+        .symbol-content.custom::after {
+            display: none !important;
+        }
+        
+        .grape.custom .grape-ball {
+            display: none !important;
+        }
+        
+        /* Ensure highlighted custom symbols still show correctly */
+        .symbol.highlighted .symbol-content.custom {
+            transform: scale(1.1) !important;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)) !important;
+        }
+        </style>
 </head>
 <body>
     <div id="game-container">

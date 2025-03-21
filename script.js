@@ -526,6 +526,8 @@ const jackpotAPI = {
 function initGame() {
     // Create reels
     createReels();
+    initCustomSymbolsSupport();
+    
     
     // Add event listeners
     document.getElementById('spin-btn').addEventListener('click', spin);
@@ -1072,10 +1074,23 @@ function spin() {
         animationFrames.forEach(frameId => cancelAnimationFrame(frameId));
         animationFrames = [];
     }
-    
+    applyCustomSymbols();
     // Start animation
     animateReels();
+
+    
 }
+
+function initCustomSymbolsSupport() {
+    // Load custom symbols
+    loadCustomSymbols();
+    
+    // Setup observer to keep symbols applied during animations
+    if (!window.symbolObserver) {
+        window.symbolObserver = setupCustomSymbolObserver();
+    }
+}
+
 
 // Animate the reels spinning
 function animateReels() {
@@ -1348,9 +1363,6 @@ function checkWins() {
         showMessage("Try again!");
     }
 
-    if (Object.keys(customSymbols).length > 0) {
-        applyCustomSymbols();
-    }
     
     // Record the spin in database
     userAPI.recordSpin(spinData).then(success => {
@@ -1368,22 +1380,32 @@ function checkWins() {
         isSpinning = false;
         window.jackpotUpdateInProgress = false;
     });
+
+    if (Object.keys(customSymbols).length > 0) {
+        applyCustomSymbols();
+    }
+    
 }
 
+let lastSymbolApplyTime = 0;
+const SYMBOL_APPLY_THROTTLE = 100; // ms minimum between applications
 
-// Function to forcefully ensure custom symbols are applied 
 function ensureCustomSymbolsApplied() {
     // Only proceed if we have custom symbols defined
     if (Object.keys(customSymbols).length === 0) return;
     
-    console.log("Ensuring custom symbols are applied");
+    // Throttle applications to avoid performance issues
+    const now = Date.now();
+    if (now - lastSymbolApplyTime < SYMBOL_APPLY_THROTTLE) return;
+    lastSymbolApplyTime = now;
     
-    // For each reel
+    // Apply to currently visible symbols only
     reels.forEach((reel, reelIndex) => {
-        // Process both main symbols and cloned symbols
-        const allSymbols = [...reel.symbols, ...(reel.clonedSymbols || [])];
+        // Get the visible symbols for this reel
+        updateVisibleSymbols(reel);
         
-        allSymbols.forEach(symbolData => {
+        // Only apply to visible symbols for performance
+        reel.visibleSymbols.forEach(symbolData => {
             if (!symbolData || !symbolData.element) return;
             
             const symbolType = symbolData.type;
@@ -1394,9 +1416,9 @@ function ensureCustomSymbolsApplied() {
             
             // If this symbol has a custom image, ensure it's applied
             if (customSymbols[symbolType]) {
-                // Apply custom image
+                // Apply custom image if needed
                 if (!symbolContent.classList.contains('custom') || 
-                    symbolContent.style.backgroundImage.indexOf(customSymbols[symbolType].substring(0, 20)) === -1) {
+                    !symbolContent.style.backgroundImage.includes('data:image')) {
                     
                     symbolContent.style.backgroundImage = `url('${customSymbols[symbolType]}')`;
                     symbolContent.classList.add('custom');
@@ -1409,32 +1431,41 @@ function ensureCustomSymbolsApplied() {
                         });
                     }
                 }
-            } else {
-                // Reset to default if no custom image but has custom class
-                if (symbolContent.classList.contains('custom')) {
-                    symbolContent.style.backgroundImage = '';
-                    symbolContent.classList.remove('custom');
-                    
-                    // Show grape balls if this is a grape symbol
-                    if (symbolType === 'grape') {
-                        const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
-                        if (grapeBalls.length === 0) {
-                            // Need to recreate grape balls if they were removed
-                            for (let k = 0; k < 6; k++) {
-                                const grapeBall = document.createElement('div');
-                                grapeBall.className = 'grape-ball';
-                                symbolContent.appendChild(grapeBall);
-                            }
-                        } else {
-                            grapeBalls.forEach(ball => {
-                                ball.style.display = '';
-                            });
-                        }
-                    }
-                }
             }
         });
     });
+}
+
+function setupCustomSymbolObserver() {
+    // Create a MutationObserver to watch for changes to the reels
+    const observer = new MutationObserver((mutations) => {
+        let shouldApplySymbols = false;
+        
+        mutations.forEach(mutation => {
+            // Check if the style.top property has changed significantly
+            if (mutation.type === 'attributes' && 
+                mutation.attributeName === 'style' && 
+                mutation.target.classList.contains('reel-strip')) {
+                
+                shouldApplySymbols = true;
+            }
+        });
+        
+        if (shouldApplySymbols && Object.keys(customSymbols).length > 0) {
+            // Apply custom symbols after a slight delay to ensure DOM is settled
+            setTimeout(applyCustomSymbols, 50);
+        }
+    });
+    
+    // Observe all reel strips
+    reels.forEach(reel => {
+        observer.observe(reel.stripElement, { 
+            attributes: true,
+            attributeFilter: ['style']
+        });
+    });
+    
+    return observer;
 }
 
 
@@ -1763,9 +1794,13 @@ function loadCustomSymbols() {
         // Try to load the full symbols object
         const savedSymbols = localStorage.getItem('slotMachineCustomSymbols');
         if (savedSymbols) {
-            customSymbols = JSON.parse(savedSymbols);
-            symbolsLoaded = true;
-            console.log('Loaded custom symbols from localStorage');
+            try {
+                customSymbols = JSON.parse(savedSymbols);
+                symbolsLoaded = true;
+                console.log('Loaded custom symbols from localStorage');
+            } catch (parseError) {
+                console.error('Error parsing stored symbols:', parseError);
+            }
         }
         
         // Also check for individual symbols (as a backup)
@@ -1788,18 +1823,48 @@ function loadCustomSymbols() {
     if (symbolsLoaded) {
         updateSymbolPreviews();
         applyCustomSymbols();
+        
+        // Setup observer to keep symbols applied during animations
+        if (!window.symbolObserver) {
+            window.symbolObserver = setupCustomSymbolObserver();
+        }
     }
     
-    // Now try to load from server if logged in
+    // Now try to load from server if logged in, but only add missing symbols
+    // (localStorage takes precedence to avoid constant resets)
     if (userAPI.userId) {
         userAPI.loadCustomSymbols()
             .then(serverSymbols => {
                 if (Object.keys(serverSymbols).length > 0) {
-                    // Merge with existing localStorage symbols
-                    customSymbols = { ...customSymbols, ...serverSymbols };
-                    updateSymbolPreviews();
-                    applyCustomSymbols();
-                    console.log('Updated with server symbols');
+                    let hasNewSymbols = false;
+                    
+                    // Only add symbols that aren't already in localStorage
+                    for (const symbolType in serverSymbols) {
+                        if (!customSymbols[symbolType]) {
+                            customSymbols[symbolType] = serverSymbols[symbolType];
+                            hasNewSymbols = true;
+                            
+                            // Also save to localStorage for future sessions
+                            try {
+                                localStorage.setItem(`symbol_${symbolType}`, serverSymbols[symbolType]);
+                            } catch (e) {
+                                console.warn('Failed to save symbol to localStorage:', e);
+                            }
+                        }
+                    }
+                    
+                    if (hasNewSymbols) {
+                        // Save the full collection to localStorage
+                        try {
+                            localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
+                        } catch (e) {
+                            console.warn('Failed to save symbols collection to localStorage:', e);
+                        }
+                        
+                        updateSymbolPreviews();
+                        applyCustomSymbols();
+                        console.log('Added missing symbols from server');
+                    }
                 }
             })
             .catch(error => {
@@ -1809,27 +1874,27 @@ function loadCustomSymbols() {
 }
 // Apply custom symbols to the game
 function applyCustomSymbols() {
+    // Only proceed if we have custom symbols defined
+    if (Object.keys(customSymbols).length === 0) return;
+    
+    console.log("Applying custom symbols to all reels");
+    
     // For each reel
     reels.forEach(reel => {
         // Process both main symbols and cloned symbols
         const allSymbols = [...reel.symbols, ...(reel.clonedSymbols || [])];
         
         allSymbols.forEach(symbolData => {
+            if (!symbolData || !symbolData.element) return;
+            
             const symbolType = symbolData.type;
             const symbolElement = symbolData.element;
             const symbolContent = symbolElement.querySelector(`.symbol-content`);
             
-            // First reset any custom styling
-            symbolContent.style.backgroundImage = '';
-            symbolContent.classList.remove('custom');
+            if (!symbolContent) return;
             
-            // Re-show grape balls if this is a grape symbol
-            if (symbolType === 'grape') {
-                const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
-                grapeBalls.forEach(ball => {
-                    ball.style.display = '';
-                });
-            }
+            // Add a data attribute to track the symbol type - makes it easier to re-apply symbols
+            symbolElement.setAttribute('data-symbol-type', symbolType);
             
             // If this symbol has a custom image, apply it
             if (customSymbols[symbolType]) {
@@ -1843,6 +1908,27 @@ function applyCustomSymbols() {
                     grapeBalls.forEach(ball => {
                         ball.style.display = 'none';
                     });
+                }
+            } else {
+                // Reset to default if no custom image
+                symbolContent.style.backgroundImage = '';
+                symbolContent.classList.remove('custom');
+                
+                // Show grape balls if this is a grape symbol
+                if (symbolType === 'grape') {
+                    const grapeBalls = symbolContent.querySelectorAll('.grape-ball');
+                    if (grapeBalls.length === 0) {
+                        // Need to recreate grape balls if they were removed
+                        for (let k = 0; k < 6; k++) {
+                            const grapeBall = document.createElement('div');
+                            grapeBall.className = 'grape-ball';
+                            symbolContent.appendChild(grapeBall);
+                        }
+                    } else {
+                        grapeBalls.forEach(ball => {
+                            ball.style.display = '';
+                        });
+                    }
                 }
             }
         });
