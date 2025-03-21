@@ -1075,6 +1075,10 @@ function spin() {
 function animateReels() {
     let allStopped = true;
     const now = Date.now();
+
+    if (Object.keys(customSymbols).length > 0) {
+        ensureCustomSymbolsApplied();
+    }
     
     // Update each reel
     reels.forEach((reel, index) => {
@@ -1710,64 +1714,93 @@ function applySymbolReset(symbolType) {
 }
 // Save custom symbols and close the modal
 function saveCustomSymbols() {
-    // If user is logged in, save to database
-    if (userAPI.userId) {
-        const savePromises = [];
+    // Save to localStorage first as reliable storage
+    try {
+        // Save the entire customSymbols object
+        localStorage.setItem('slotMachineCustomSymbols', JSON.stringify(customSymbols));
         
-        // Save each custom symbol to the database
+        // Also save individual symbols for easier access
         for (const symbolType in customSymbols) {
-            savePromises.push(
-                userAPI.saveCustomSymbol(symbolType, customSymbols[symbolType])
-            );
+            localStorage.setItem(`symbol_${symbolType}`, customSymbols[symbolType]);
         }
-        
-        // Wait for all saves to complete
-        Promise.all(savePromises).then(() => {
-            console.log('All custom symbols saved to database');
-            
-            // Apply custom symbols to the game
-            applyCustomSymbols();
-            
-            // Hide the modal
-            hideSymbolCustomizer();
-        });
-    } else {
-        // If not logged in, just apply locally
-        applyCustomSymbols();
-        hideSymbolCustomizer();
+        console.log('Saved all symbols to localStorage');
+    } catch (error) {
+        console.error('Error saving to localStorage:', error);
     }
+    
+    // Apply custom symbols to the game immediately
+    applyCustomSymbols();
+    
+    // Try to save to server if logged in (but don't wait for it)
+    if (userAPI.userId) {
+        // Don't use Promise.all as it will wait for everything
+        // Instead, fire off independent save requests
+        for (const symbolType in customSymbols) {
+            userAPI.saveCustomSymbol(symbolType, customSymbols[symbolType])
+                .catch(error => {
+                    console.warn(`Server save failed for ${symbolType}, but localStorage backup exists`);
+                });
+        }
+        console.log('Save requests sent to server (background)');
+    }
+    
+    // Hide the modal immediately without waiting for server
+    hideSymbolCustomizer();
 }
 
 // Load custom symbols from localStorage
 function loadCustomSymbols() {
-    const savedSymbols = localStorage.getItem('slotMachineCustomSymbols');
+    // First, check localStorage
+    let symbolsLoaded = false;
     
-    if (savedSymbols) {
-        try {
+    try {
+        // Try to load the full symbols object
+        const savedSymbols = localStorage.getItem('slotMachineCustomSymbols');
+        if (savedSymbols) {
             customSymbols = JSON.parse(savedSymbols);
-            
-            // Update the previews in the customizer
-            for (const symbolType in customSymbols) {
-                const dataURL = customSymbols[symbolType];
-                const previewElement = document.querySelector(`.symbol-file[data-symbol="${symbolType}"]`)
-                                            ?.closest('.symbol-row')
-                                            ?.querySelector('.symbol-content');
-                
-                if (previewElement) {
-                    previewElement.style.backgroundImage = `url('${dataURL}')`;
-                    previewElement.classList.add('custom');
+            symbolsLoaded = true;
+            console.log('Loaded custom symbols from localStorage');
+        }
+        
+        // Also check for individual symbols (as a backup)
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('symbol_')) {
+                const symbolType = key.replace('symbol_', '');
+                const data = localStorage.getItem(key);
+                if (data && !customSymbols[symbolType]) {
+                    customSymbols[symbolType] = data;
+                    symbolsLoaded = true;
                 }
             }
-            
-            // Apply custom symbols to the game
-            applyCustomSymbols();
-        } catch (error) {
-            console.error('Error loading custom symbols from localStorage:', error);
-            customSymbols = {};
         }
+    } catch (error) {
+        console.error('Error loading from localStorage:', error);
+    }
+    
+    // If we loaded from localStorage, apply symbols immediately
+    if (symbolsLoaded) {
+        updateSymbolPreviews();
+        applyCustomSymbols();
+    }
+    
+    // Now try to load from server if logged in
+    if (userAPI.userId) {
+        userAPI.loadCustomSymbols()
+            .then(serverSymbols => {
+                if (Object.keys(serverSymbols).length > 0) {
+                    // Merge with existing localStorage symbols
+                    customSymbols = { ...customSymbols, ...serverSymbols };
+                    updateSymbolPreviews();
+                    applyCustomSymbols();
+                    console.log('Updated with server symbols');
+                }
+            })
+            .catch(error => {
+                console.warn('Server load failed, using localStorage symbols only');
+            });
     }
 }
-
 // Apply custom symbols to the game
 function applyCustomSymbols() {
     // For each reel
