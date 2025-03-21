@@ -857,7 +857,7 @@ function createReels() {
             lastUpdate: 0,
             stopping: false,
             stopPosition: 0,
-            clonedSymbols: [] // Add an array to track cloned symbols
+            clonedSymbols: []
         };
         
         // Get weighted symbols array
@@ -875,8 +875,7 @@ function createReels() {
             reel.symbols.push(symbolData);
         }
         
-        // Add blank fills to ensure continuous spinning - these are extra invisible symbols
-        // that ensure we never see empty spaces
+        // Add blank fills to ensure continuous spinning
         for (let j = 0; j < 3; j++) {
             // Use the first few symbols again to make a seamless loop
             const originalSymbol = reel.symbols[j];
@@ -888,12 +887,11 @@ function createReels() {
             });
             
             stripElement.appendChild(clonedData.element);
-            // Now also track these cloned symbols
             reel.clonedSymbols.push(clonedData);
         }
         
-        // Position the strip to show the middle symbols initially
-        // Make sure it's aligned to symbol boundaries
+        // IMPROVED: Position the strip to show the middle symbols initially
+        // Ensure it's exactly a multiple of SYMBOL_HEIGHT
         stripElement.style.top = `${-1 * SYMBOL_HEIGHT}px`;
         
         // Add to reels array
@@ -905,7 +903,6 @@ function createReels() {
         applyCustomSymbols();
     }
 }
-
 // Update credit display
 function updateCredits() {
     document.getElementById('credit-display').textContent = `CREDIT $${credits.toFixed(2)}`;
@@ -995,10 +992,8 @@ function spin() {
     
     // Track wagered amount for current user
     currentUser.totalWagered += stake;
-    // Add this line to ensure proper rounding to 2 decimal places
     currentUser.totalWagered = Math.round(currentUser.totalWagered * 100) / 100;
-    currentUser.bankroll -= stake; // Deduct from bankroll
-    // Also round the bankroll
+    currentUser.bankroll -= stake;
     currentUser.bankroll = Math.round(currentUser.bankroll * 100) / 100;
 
     userAPI.saveUserData(currentUser);
@@ -1028,34 +1023,21 @@ function spin() {
         reel.stopping = false;
         
         // Pre-determine the final symbols for this reel
-        // This ensures we can control the outcome for fair gameplay or testing
+        // IMPROVED: Ensure we get a clean display of whole symbols
         const stopIndex = Math.floor(Math.random() * SYMBOLS_PER_REEL);
         
-        // Calculate stop position to ensure the chosen symbol is in middle position
-        // We want the symbol at stopIndex to end up in the middle position (position 1)
-        // The middle position starts at symbol height
-        const middleOffset = SYMBOL_HEIGHT;
-        
-        // Calculate a target position that will place the chosen symbol in the middle
-        // The stop position must be a multiple of SYMBOL_HEIGHT to align properly
-        let targetTop = -((stopIndex * SYMBOL_HEIGHT) - middleOffset);
-        
-        // Normalize position to be within a reasonable range and ensure it's aligned to symbol boundaries
-        targetTop = Math.round(targetTop / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
-        targetTop = targetTop % (SYMBOLS_PER_REEL * SYMBOL_HEIGHT);
-        
-        // Ensure target is always negative (moving upward)
-        if (targetTop > 0) {
-            targetTop -= SYMBOLS_PER_REEL * SYMBOL_HEIGHT;
-        }
+        // IMPROVED: Calculate exact positions to ensure perfect alignment
+        // We want the middle position to show a whole symbol
+        // Each position must be an exact multiple of SYMBOL_HEIGHT
+        const targetTop = -1 * stopIndex * SYMBOL_HEIGHT;
         
         // Add additional spins to make the animation longer
         // 2-4 complete rotations based on reel index for staggered effect
         const additionalSpins = (2 + index) * SYMBOLS_PER_REEL * SYMBOL_HEIGHT;
-        targetTop -= additionalSpins;
+        const finalTarget = targetTop - additionalSpins;
         
         // Store the target stop position
-        reel.stopPosition = targetTop;
+        reel.stopPosition = finalTarget;
         
         // Schedule when to start stopping this reel (staggered stops)
         setTimeout(() => {
@@ -1065,7 +1047,6 @@ function spin() {
             if (Object.keys(customSymbols).length > 0) {
                 ensureCustomSymbolsApplied();
             }
-
         }, 1000 + (index * 500)); // Staggered stops - 1s, 1.5s, 2s
     });
     
@@ -1074,12 +1055,12 @@ function spin() {
         animationFrames.forEach(frameId => cancelAnimationFrame(frameId));
         animationFrames = [];
     }
+    
     applyCustomSymbols();
     // Start animation
     animateReels();
-
-    
 }
+
 
 function initCustomSymbolsSupport() {
     // Load custom symbols
@@ -1120,14 +1101,16 @@ function animateReels() {
                 const distanceToStop = Math.abs(topPosition - reel.stopPosition);
                 
                 if (distanceToStop < 5) {
-                    reel.stripElement.style.top = `${reel.stopPosition}px`;
+                    // IMPROVED: Force exact alignment with symbol boundaries
+                    // Calculate the nearest multiple of SYMBOL_HEIGHT
+                    const exactPosition = Math.round(reel.stopPosition / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
+                    
+                    // Apply the exact position
+                    reel.stripElement.style.top = `${exactPosition}px`;
                     reel.spinSpeed = 0;
-                    const currentPos = Math.abs(reel.stopPosition);
-                    const remainder = currentPos % SYMBOL_HEIGHT;
-                    if (remainder !== 0) {
-                        const adjusted = currentPos - remainder;
-                        reel.stripElement.style.top = `-${adjusted}px`;
-                    }
+                    
+                    // Update the stop position to this exact value
+                    reel.stopPosition = exactPosition;
                 } else {
                     // Slowly move toward stop position
                     const direction = topPosition > reel.stopPosition ? -1 : 1;
@@ -1152,6 +1135,14 @@ function animateReels() {
         if (reel.spinSpeed > 0) {
             allStopped = false;
         } else if (index === reels.length - 1 && allStopped) {
+            // IMPROVED: Ensure all reels are perfectly aligned before checking wins
+            reels.forEach(r => {
+                const currentPos = parseFloat(r.stripElement.style.top || 0);
+                const alignedPos = Math.round(currentPos / SYMBOL_HEIGHT) * SYMBOL_HEIGHT;
+                r.stripElement.style.top = `${alignedPos}px`;
+                r.stopPosition = alignedPos;
+            });
+            
             // All reels stopped, check for wins after a short delay
             setTimeout(() => {
                 // Apply custom symbols before checking wins
@@ -1173,6 +1164,7 @@ function animateReels() {
         animationFrames.push(requestAnimationFrame(animateReels));
     }
 }
+
 
 // Check for winning combinations
 function checkWins() {
